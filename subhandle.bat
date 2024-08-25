@@ -1,1 +1,1 @@
-python "C:\Coding\subhandle.py" %~dp0
+python "C:\Coding\Jimaku-Subtitle-Updater\subhandle.py" %~dp0

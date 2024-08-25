@@ -22,23 +22,27 @@ PRESET = {
     'strip_line': ["^8.*$"]
   },
   'example': {
-    'fsize': 0,
-    'vertical': 0,
-    'outline': 0,
+    'fsize': None,
+    'fname': 'aaaa',
+    'vertical': None,
+    'vertical_top': None,
+    'outline': None,
     'strip_line': ["^0.*$", "^8.*$"],
     'extract': True,
     'mode': 'CN',
     'upload': False,
   },
   '[dellater]': {
-    'fsize': 0,
-    'vertical': 0,
-    'extract': True,
+    'fsize': -600,
+    'vertical': 999999,
+    'vertical_top': -1000000,
+    'strip_line': ["^0.*$", "^8.*$"],
+    'extract': False,
     'mode': 'CN',
     'upload': False,
-  },
+  }
 }
-STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "scr", "cmt"]
+STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "scr", "cmt", "info"]
 JIMAKU_API_KEY = ''
 
 ############ DEFAULTS ############
@@ -48,6 +52,35 @@ CONF = {
   'linebreak': False,
   'upload': False
 }
+
+############ Shared ############
+
+
+EXTRACTED = []
+
+def apply(confField):
+  if confField in CONF and CONF[confField]:
+    return True
+  return False
+
+parser = argparse.ArgumentParser()
+parser.add_argument('file')
+parser.add_argument('-p', '--preset')      
+args = parser.parse_args()
+# if len(sys.argv) > 1:
+#   DIRNAME = os.path.normpath(sys.argv[1])
+# else:
+#   DIRNAME = os.path.dirname(os.path.realpath(__file__))
+DIRNAME = args.file
+os.chdir(DIRNAME)
+
+def setConf(presetname):
+  for p in PRESET.keys():
+    if p == presetname:
+      for setting in PRESET[p].keys():
+        CONF[setting] = PRESET[p][setting]
+      return True
+  return False
 
 ############ CN ############
 
@@ -64,25 +97,28 @@ def cn_file_rename(sub):
 
 def cn_update_styles(styles):
   def matching(x):
-    match = ["dial", "text", "bottom"] #need to match to apply font size and outline
-    notmatch = ["2", "top"] #need to not match to also apply vertical positioning
+    match = ["dial", "text", "bottom"] #need to match to apply style options
+    matchTop = ["2", "top"] #need to match to apply vertical positioning
     for m in match:
-      if m in x.name.lower():
-        for nm in notmatch:
-          if nm in x.name.lower():
-            return "no_vertical"
+      if m in x:
+        for mt in matchTop:
+          if mt in x:
+            return "top"
         return True
        
     return False
 
+
   for s in styles:
-    apply = matching(s)
-    if apply:
-      if 'fsize' in CONF: s.fontsize = CONF['fsize']
-      if 'outline' in CONF: s.outline = CONF['outline']
-      if apply != "no_vertical":
-        if 'vertical' in CONF: s.margin_v = CONF['vertical']
-        
+    match = matching(s.name.lower())
+    if match:
+      if apply('fsize'): s.fontsize = CONF['fsize']
+      if apply('fname'): s.fontname = CONF['fname']
+      if apply('outline'): s.outline = CONF['outline']
+      if match == "top":
+        if apply('vertical_top'): s.margin_v = CONF['vertical_top']
+      else:
+        if apply('vertical'): s.margin_v = CONF['vertical']
 
   return styles
 
@@ -109,8 +145,7 @@ def cn_doc_clean(doc):
   def filterEvents(x):
     a = x.style not in removeStyles
     b = True
-    # print(x.dump())
-    if "strip_line" in CONF:
+    if apply("strip_line"):
       for i in CONF["strip_line"]:
         if re.fullmatch(i, x.dump()):
           b = False
@@ -122,32 +157,43 @@ def cn_doc_clean(doc):
 
   return doc
 
+def parse_subset(lines):
+  for line in lines:
+    print(line)
+    if(re.fullmatch("[V4\+? Styles]", line)):
+      print("TRUE")
+      break
+
 def cn_clean():
+  # file renaming
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
-
-  for sub in extracted_subs:
-    if "[JPN]" in sub:
-      continue
-
-    # file renaming
+  for sub in EXTRACTED:
     old = sub
     sub = cn_file_rename(sub)
-
     if sub != old:
       if sub in extracted_subs:
         os.remove(sub)
-        print("Replace dual file of same name")
+        print(f"Replace dual file of same name: {sub}")
       os.rename(old, sub)
+  
 
-    # handle new file
+  # handle new file
+  extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
+  for sub in extracted_subs:
+    print(f"Working on: {sub}")
+    # if "[JPN]" in sub:
+    #   continue
+
     with open(sub, 'r', encoding='utf-8-sig') as f:
       doc = ass.parse(f)
+      lines = f.readlines()
+      subsets = parse_subset(lines)
       doc = cn_doc_clean(doc)
     
     sub = sub.replace("[CHS, JPN]", "[JPN]")
     if sub in extracted_subs:
       os.remove(sub)
-      print("Replace [JPN] file of same name")
+      print(f"Replace [JPN] file of same name: {sub}")
 
     with open(sub, "x" , encoding='utf_8_sig') as f:
       doc.dump_file(f)
@@ -171,17 +217,29 @@ def cn_extract_subs(mkv):
     raise Exception("No subtitle streams to extract? Can't do any syncing. {}".format(mkv))
   index = []
   codec_name = []
+  num_extracted = 0
+
+  def matching(x):
+    match = ["cht", "tc", "繁"] #skip these tracks
+    for m in match:
+      if m in x:
+        return True
+       
+    return False
+
   for s in mkv_json["streams"]:
-    title = s["tags"]["title"].upper()
-    if title != "CHT" and title != "JPTC": #skip these tracks
+    title = s["tags"]["title"]
+    if num_extracted == 0 and not matching(title.lower()):
       index.append(s["index"]) 
       codec_name.append(s["codec_name"])
+      num_extracted += 1
 
 
   # filename = mkv.replace(".mkv", "[CHS, JPN]")
   filename = mkv.replace(".mkv", "")
   commands = ['mkvextract', DIRNAME+'\\'+mkv, "tracks"]
   for i in range(len(index)):
+    EXTRACTED.append(f"{filename}.{codec_name[i]}")
     commands.append(f"{index[i]}:{filename}.{codec_name[i]}")
 
   subprocess.run(commands) # mkvextract "C:\Coding\input.mkv" tracks 2:name.ass 3:name.srt
@@ -230,31 +288,13 @@ def ts_extract_subs(mkv):
 
 ############ MAIN ############
 
-parser = argparse.ArgumentParser()
-parser.add_argument('file')
-parser.add_argument('-p', '--preset')      
-args = parser.parse_args()
-# if len(sys.argv) > 1:
-#   DIRNAME = os.path.normpath(sys.argv[1])
-# else:
-#   DIRNAME = os.path.dirname(os.path.realpath(__file__))
-DIRNAME = args.file
-os.chdir(DIRNAME)
-
-def setConf(presetname):
-  for p in PRESET.keys():
-    if p == presetname:
-      for setting in PRESET[p].keys():
-        CONF[setting] = PRESET[p][setting]
-      return True
-  return False
-
 if __name__ == '__main__':
   parser.add_argument('filename')
   if args.preset:
     setConf(args.preset)
   else:
     setConf(os.path.basename(DIRNAME))
+
   mkvs = [f for f in os.listdir() if f.endswith(".mkv")]
   if len(mkvs) == 0:
     print(f"ERROR: mkv not found")
