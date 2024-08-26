@@ -122,8 +122,8 @@ def cn_update_styles(styles):
 
   return styles
 
-def cn_doc_clean(doc):
-  # strip styles and lines
+def cn_doc_clean(doc, subsets):
+  # strip styles
   def in_STRIP_STYLES(x):
     x = x.lower()
     for str in STRIP_STYLES:
@@ -138,10 +138,17 @@ def cn_doc_clean(doc):
       removeStyles.append(name)
     else: 
       keepStyles.append(name)
-
   doc.styles = list(filter(lambda x: x.name in keepStyles, doc.styles))
-  doc.styles = cn_update_styles(doc.styles)
+  
+  #replace font subsets
+  for s in doc.styles:
+    if s.fontname in list(subsets.keys()):
+      s.fontname = subsets[s.fontname]
 
+
+  doc.styles = cn_update_styles(doc.styles) #update styles
+
+  # strip lines
   def filterEvents(x):
     a = x.style not in removeStyles
     b = True
@@ -158,11 +165,15 @@ def cn_doc_clean(doc):
   return doc
 
 def parse_subset(lines):
+  subsets = {}
   for line in lines:
-    print(line)
-    if(re.fullmatch("[V4\+? Styles]", line)):
-      print("TRUE")
-      break
+    match = re.match("; Font Subset: (.{8}) - (.*)", line)
+    if(match):
+      subsets[match.group(1)] = match.group(2)
+    if(re.search("\[V4\+? Styles\]", line)):
+      return subsets
+  
+  return False
 
 def cn_clean():
   # file renaming
@@ -184,11 +195,14 @@ def cn_clean():
     # if "[JPN]" in sub:
     #   continue
 
+
+
     with open(sub, 'r', encoding='utf-8-sig') as f:
       doc = ass.parse(f)
+      f.seek(0)
       lines = f.readlines()
       subsets = parse_subset(lines)
-      doc = cn_doc_clean(doc)
+      doc = cn_doc_clean(doc, subsets)
     
     sub = sub.replace("[CHS, JPN]", "[JPN]")
     if sub in extracted_subs:
