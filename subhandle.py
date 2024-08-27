@@ -1,5 +1,5 @@
 import os
-import os.path
+from pathlib import Path
 import subprocess
 import json
 import re
@@ -43,6 +43,9 @@ PRESET = {
   }
 }
 STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "scr", "cmt", "info"]
+TC_TRACK = ["cht", "tc", "繁"]
+NORMAL_STYLE = ["dial", "text", "bottom"] 
+TOP_STYLE = ["2", "top", "up"] 
 JIMAKU_API_KEY = ''
 
 ############ DEFAULTS ############
@@ -64,14 +67,16 @@ def apply(confField):
   return False
 
 parser = argparse.ArgumentParser()
-parser.add_argument('file')
+# parser.add_argument('folder', nargs='?', default=os.getcwd())
+parser.add_argument('folder')
 parser.add_argument('-p', '--preset')      
 args = parser.parse_args()
 # if len(sys.argv) > 1:
 #   DIRNAME = os.path.normpath(sys.argv[1])
 # else:
 #   DIRNAME = os.path.dirname(os.path.realpath(__file__))
-DIRNAME = args.file
+DIRNAME = args.folder
+DIRPATH = Path(DIRNAME)
 os.chdir(DIRNAME)
 
 def setConf(presetname):
@@ -79,6 +84,8 @@ def setConf(presetname):
     if p == presetname:
       for setting in PRESET[p].keys():
         CONF[setting] = PRESET[p][setting]
+      print(f"PRESET FOUND: {p}")
+
       return True
   return False
 
@@ -97,11 +104,9 @@ def cn_file_rename(sub):
 
 def cn_update_styles(styles):
   def matching(x):
-    match = ["dial", "text", "bottom"] #need to match to apply style options
-    matchTop = ["2", "top"] #need to match to apply vertical positioning
-    for m in match:
+    for m in NORMAL_STYLE: #need to match to apply style options
       if m in x:
-        for mt in matchTop:
+        for mt in TOP_STYLE: #need to match to apply vertical positioning
           if mt in x:
             return "top"
         return True
@@ -124,7 +129,7 @@ def cn_update_styles(styles):
 
 def cn_doc_clean(doc, subsets):
   # strip styles
-  def in_STRIP_STYLES(x):
+  def matching(x):
     x = x.lower()
     for str in STRIP_STYLES:
       if str in x: return True
@@ -134,7 +139,7 @@ def cn_doc_clean(doc, subsets):
   removeStyles = []
   for i in range(len(doc.styles)):
     name = doc.styles[i].name
-    if in_STRIP_STYLES(name): 
+    if matching(name): 
       removeStyles.append(name)
     else: 
       keepStyles.append(name)
@@ -234,8 +239,8 @@ def cn_extract_subs(mkv):
   num_extracted = 0
 
   def matching(x):
-    match = ["cht", "tc", "繁"] #skip these tracks
-    for m in match:
+    #skip traditional chinese tracks
+    for m in TC_TRACK:
       if m in x:
         return True
        
@@ -303,11 +308,12 @@ def ts_extract_subs(mkv):
 ############ MAIN ############
 
 if __name__ == '__main__':
-  parser.add_argument('filename')
+  print("1:",DIRNAME)
+  print("2:",DIRPATH.name)
   if args.preset:
     setConf(args.preset)
   else:
-    setConf(os.path.basename(DIRNAME))
+    setConf(DIRPATH.name)
 
   mkvs = [f for f in os.listdir() if f.endswith(".mkv")]
   if len(mkvs) == 0:
