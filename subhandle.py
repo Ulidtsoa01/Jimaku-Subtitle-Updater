@@ -35,7 +35,7 @@ PRESET = {
     'vertical': 999999,
     'vertical_top': -1000000,
     'strip_line': ["^0.*$", "^8.*$"],
-    'extract': False,
+    'extract': True,
     'mode': 'CN',
     'upload': False,
   }
@@ -73,8 +73,8 @@ args = parser.parse_args()
 #   DIRNAME = os.path.normpath(sys.argv[1])
 # else:
 #   DIRNAME = os.path.dirname(os.path.realpath(__file__))
-DIRNAME = args.folder
-DIRPATH = Path(DIRNAME)
+DIRPATH = Path(args.folder)
+DIRNAME = DIRPATH.resolve()
 os.chdir(DIRNAME)
 
 def setConf(presetname):
@@ -262,7 +262,7 @@ def cn_extract_subs(mkv):
 
   # filename = mkv.replace(".mkv", "[CHS, JPN]")
   filename = mkv.replace(".mkv", "")
-  commands = ['mkvextract', DIRNAME+'\\'+mkv, "tracks"]
+  commands = ['mkvextract', DIRPATH.joinpath(mkv), "tracks"]
   for i in range(len(index)):
     EXTRACTED.append(f"{filename}.{codec_name[i]}")
     commands.append(f"{index[i]}:{filename}.{codec_name[i]}")
@@ -305,7 +305,7 @@ def ts_extract_subs(mkv):
 
   subprocess.run([
     'mkvextract',
-    DIRNAME+'\\'+mkv,
+    DIRPATH.joinpath(mkv),
     "tracks",
     f"2:{filename}.ass",
     f"3:{filename}.srt"
