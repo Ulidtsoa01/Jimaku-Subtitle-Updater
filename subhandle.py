@@ -12,14 +12,12 @@ import argparse
 ############ CONFIG ############
 
 PRESET = {
+  'encoded': {
+    'mode': 'TS'
+  },
   '[Nekomoe kissaten&LoliHouse] Monogatari Series - Off & Monster Season': {
     'fsize': 80,
     'vertical': 54
-  },
-  '[Kitauji] Shikanoko': {
-    'fsize': 0,
-    'vertical': 0,
-    'strip_line': ["^8.*$"]
   },
   'example': {
     'fsize': None,
@@ -42,7 +40,7 @@ PRESET = {
     'upload': False,
   }
 }
-STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "scr", "cmt", "info"]
+STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "scr", "cmt", "info", "next episode", "stf"]
 TC_TRACK = ["cht", "tc", "繁"]
 NORMAL_STYLE = ["dial", "text", "bottom"] 
 TOP_STYLE = ["2", "top", "up"] 
@@ -90,12 +88,20 @@ def setConf(presetname):
   return False
 
 ############ CN ############
-
+#(CHT)|(CHS)|(TC)|(SC)|(JP)
+#separators optional
+#2-4 groups
 def cn_file_rename(sub):
-  if "[CHS_JP&CHT_JP]" in sub.upper():
-    sub = sub.replace("[CHS_JP&CHT_JP]", "")
-  if " CHS&CHT]" in sub.upper():
-    sub = sub.replace(" CHS&CHT]", "]")
+  # print("1:")
+  tags = "((CH[TS])|([TS]C)|(JP))"
+  tagstring1 = f"(\[{tags}.?{tags}.?{tags}?.?{tags}?\])"
+  tagstring2 = f"( {tags}.?{tags}.?{tags}?.?{tags}?\])"
+  reg1 = re.search(tagstring1, sub.upper())
+  reg2 = re.search(tagstring2, sub.upper())
+  if reg1:
+    sub = sub.replace(reg1.group(1), "")
+  elif reg2:
+    sub = sub.replace(reg2.group(1), "]")
 
   sub = sub.replace("[CHS, JPN]", "")
   sub = sub.replace(".ass", "")
@@ -182,8 +188,10 @@ def parse_subset(lines):
 
 def cn_clean():
   # file renaming
+  # only apply to extracted files if extracting is on
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
-  for sub in EXTRACTED:
+  extractWhich =  EXTRACTED if CONF['extract'] else extracted_subs
+  for sub in extractWhich:
     old = sub
     sub = cn_file_rename(sub)
     if sub != old:
@@ -199,8 +207,6 @@ def cn_clean():
     print(f"Working on: {sub}")
     # if "[JPN]" in sub:
     #   continue
-
-
 
     with open(sub, 'r', encoding='utf-8-sig') as f:
       doc = ass.parse(f)
@@ -308,20 +314,19 @@ def ts_extract_subs(mkv):
 ############ MAIN ############
 
 if __name__ == '__main__':
-  print("1:",DIRNAME)
-  print("2:",DIRPATH.name)
+  print(f"Applying to directory: {DIRNAME}")
   if args.preset:
     setConf(args.preset)
   else:
     setConf(DIRPATH.name)
 
   mkvs = [f for f in os.listdir() if f.endswith(".mkv")]
-  if len(mkvs) == 0:
-    print(f"ERROR: mkv not found")
-    input("press enter to exit...")
-    exit(1)
 
   if CONF['extract']:
+    if len(mkvs) == 0:
+      print(f"ERROR: mkv not found")
+      input("press enter to exit...")
+      exit(1)
     for mkv in mkvs:
       if CONF['mode'] == 'CN':
         cn_extract_subs(mkv)
