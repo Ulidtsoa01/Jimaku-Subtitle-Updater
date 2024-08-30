@@ -7,7 +7,8 @@ import time
 import sys
 import ass
 import argparse
-
+import requests
+from datetime import datetime
 
 ############ CONFIG ############
 
@@ -29,22 +30,27 @@ PRESET = {
     'extract': True,
     'mode': 'CN',
     'upload': False,
+    'jimaku_id': 0,
   },
-  '[dellater]': {
+  '.extract': {
     'fsize': -600,
     'vertical': 999999,
     'vertical_top': -1000000,
-    'strip_line': ["^0.*$", "^8.*$"],
-    'extract': True,
+    'jimaku_id': 1,
+    'extract': False,
     'mode': 'CN',
     'upload': False,
   }
 }
+# JIMAKU_API_KEY = ''
+with open("C:\Coding\Jimaku-Subtitle-Updater\.env") as f:
+  lines = f.read().splitlines()
+  f.close()
+JIMAKU_API_KEY = lines[0]
 STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "scr", "cmt", "info", "next episode", "stf"]
 TC_TRACK = ["cht", "tc", "繁"]
 NORMAL_STYLE = ["dial", "text", "bottom"] 
 TOP_STYLE = ["2", "top", "up"] 
-JIMAKU_API_KEY = ''
 
 ############ DEFAULTS ############
 CONF = {
@@ -56,46 +62,54 @@ CONF = {
 
 ############ Shared ############
 
+parser = argparse.ArgumentParser()
+parser.add_argument('folder', nargs='?', default=os.getcwd())
+parser.add_argument('-p', '--preset')  
+parser.add_argument('-s', '--strict', action='store_true')    
+args = parser.parse_args()
+DIRPATH = Path(args.folder)
+DIRNAME = DIRPATH.resolve()
+STRICT = args.strict
+os.chdir(DIRNAME)
+if args.strict and not Path("ignore.conf").is_file():
+  print("ignore.conf not present")
+  exit(0)
 
-EXTRACTED = []
+EXTRACTED_FILES = []
+EXTRACTED_FILEPATHS = []
 
 def apply(confField):
   if confField in CONF and CONF[confField]:
     return True
   return False
 
-parser = argparse.ArgumentParser()
-# parser.add_argument('folder', nargs='?', default=os.getcwd())
-parser.add_argument('folder')
-parser.add_argument('-p', '--preset')      
-args = parser.parse_args()
-# if len(sys.argv) > 1:
-#   DIRNAME = os.path.normpath(sys.argv[1])
-# else:
-#   DIRNAME = os.path.dirname(os.path.realpath(__file__))
-DIRPATH = Path(args.folder)
-DIRNAME = DIRPATH.resolve()
-os.chdir(DIRNAME)
-
 def setConf(presetname):
+  
   for p in PRESET.keys():
     if p == presetname:
       for setting in PRESET[p].keys():
         CONF[setting] = PRESET[p][setting]
-      print(f"PRESET FOUND: {p}")
+      log(f"PRESET FOUND: {p}")
 
       return True
   return False
+
+def log(line):
+  if STRICT:
+    with open("upload.log", 'a', encoding="utf-8") as f:
+      f.write(f"{line}\n")
+      f.close()
+  
+  print(line)
 
 ############ CN ############
 #(CHT)|(CHS)|(TC)|(SC)|(JP)
 #separators optional
 #2-4 groups
 def cn_file_rename(sub):
-  # print("1:")
   tags = "((CH[TS])|([TS]C)|(JP))"
-  tagstring1 = f"(\[{tags}.?{tags}.?{tags}?.?{tags}?\])"
-  tagstring2 = f"( {tags}.?{tags}.?{tags}?.?{tags}?\])"
+  tagstring1 = fr"(\[{tags}.?{tags}.?{tags}?.?{tags}?\])"
+  tagstring2 = fr"( {tags}.?{tags}.?{tags}?.?{tags}?\])"
   reg1 = re.search(tagstring1, sub.upper())
   reg2 = re.search(tagstring2, sub.upper())
   if reg1:
@@ -103,9 +117,9 @@ def cn_file_rename(sub):
   elif reg2:
     sub = sub.replace(reg2.group(1), "]")
 
-  sub = sub.replace("[CHS, JPN]", "")
-  sub = sub.replace(".ass", "")
-  sub+="[CHS, JPN].ass"
+  if "[CHS, JPN]" not in sub and "[JPN]" not in sub:
+    sub = sub.replace(".ass", "")
+    sub+="[CHS, JPN].ass"
   return sub
 
 def cn_update_styles(styles):
@@ -181,7 +195,7 @@ def parse_subset(lines):
     match = re.match("; Font Subset: (.{8}) - (.*)", line)
     if(match):
       subsets[match.group(1)] = match.group(2)
-    if(re.search("\[V4\+? Styles\]", line)):
+    if(re.search(r"\[V4\+? Styles\]", line)):
       return subsets
   
   return False
@@ -190,21 +204,21 @@ def cn_clean():
   # file renaming
   # only apply to extracted files if extracting is on
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
-  extractWhich =  EXTRACTED if CONF['extract'] else extracted_subs
+  extractWhich =  EXTRACTED_FILES if CONF['extract'] else extracted_subs
   for sub in extractWhich:
     old = sub
     sub = cn_file_rename(sub)
     if sub != old:
       if sub in extracted_subs:
         os.remove(sub)
-        print(f"Replace dual file of same name: {sub}")
+        log(f"Replace dual file of same name: {sub}")
       os.rename(old, sub)
   
 
   # handle new file
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
   for sub in extracted_subs:
-    print(f"Working on: {sub}")
+    log(f"Working on sub file: {sub}")
     # if "[JPN]" in sub:
     #   continue
 
@@ -214,14 +228,17 @@ def cn_clean():
       lines = f.readlines()
       subsets = parse_subset(lines)
       doc = cn_doc_clean(doc, subsets)
+      f.close()
     
+    # if("[CHS, JPN]" in sub):
     sub = sub.replace("[CHS, JPN]", "[JPN]")
     if sub in extracted_subs:
       os.remove(sub)
-      print(f"Replace [JPN] file of same name: {sub}")
+      log(f"Replace [JPN] file of same name: {sub}")
 
     with open(sub, "x" , encoding='utf_8_sig') as f:
       doc.dump_file(f)
+      f.close()
 
 
 def cn_extract_subs(mkv):
@@ -235,11 +252,11 @@ def cn_extract_subs(mkv):
     "-show_streams",
     "-select_streams",
     "s",
-    mkv
+    mkv.resolve()
   ])) # ffprobe -v quiet -print_format json -show_streams -select_streams s input.mkv
 
   if not mkv_json.get("streams"):
-    raise Exception("No subtitle streams to extract? Can't do any syncing. {}".format(mkv))
+    raise Exception(f"No subtitle streams to extract: {mkv.resolve()}")
   index = []
   codec_name = []
   num_extracted = 0
@@ -259,13 +276,11 @@ def cn_extract_subs(mkv):
       codec_name.append(s["codec_name"])
       num_extracted += 1
 
-
-  # filename = mkv.replace(".mkv", "[CHS, JPN]")
-  filename = mkv.replace(".mkv", "")
-  commands = ['mkvextract', DIRPATH.joinpath(mkv), "tracks"]
+  commands = ['mkvextract', mkv.resolve(), "tracks"]
   for i in range(len(index)):
-    EXTRACTED.append(f"{filename}.{codec_name[i]}")
-    commands.append(f"{index[i]}:{filename}.{codec_name[i]}")
+    EXTRACTED_FILEPATHS.append(DIRPATH.joinpath(f"{mkv.stem}.{codec_name[i]}"))
+    EXTRACTED_FILES.append(f"{mkv.stem}.{codec_name[i]}")
+    commands.append(f"{index[i]}:{mkv.stem}.{codec_name[i]}")
 
   subprocess.run(commands) # mkvextract "C:\Coding\input.mkv" tracks 2:name.ass 3:name.srt
 
@@ -281,9 +296,9 @@ def ts_regexOps(lines):
         line = "Style: Default,A-OTF Maru Folk Pro B,42,&H00FFFFFF,&H000000FF,&H00000000,&H7F000000,-1,0,0,0,100,100,0,0,1,2,2,1,0,0,0,1\n"
       res.append(line)
       if not x:
-        x = re.search('PlayResX: (\d{1,4})', line)
+        x = re.search(r'PlayResX: (\d{1,4})', line)
       if not y:
-        y = re.search('PlayResY: (\d{1,4})', line)
+        y = re.search(r'PlayResY: (\d{1,4})', line)
         if x and y:
           res.append(f"LayoutResX: {x.group(1)}\n")
           res.append(f"LayoutResY: {y.group(1)}\n")
@@ -295,51 +310,115 @@ def ts_fix_styling():
   for sub in extracted_subs:
     with open(sub, 'r', encoding="utf-8") as f:
       lines = f.readlines()
+      f.close()
     lines = ts_regexOps(lines)
     with open(sub, 'w', encoding="utf-8") as f:
-      # f.write('\r\n'.join(lines))
       f.write(''.join(lines))
+      f.close()
 
 def ts_extract_subs(mkv):
-  filename = mkv.replace(".mkv", "")
-
   subprocess.run([
     'mkvextract',
-    DIRPATH.joinpath(mkv),
+    mkv.resolve(),
     "tracks",
-    f"2:{filename}.ass",
-    f"3:{filename}.srt"
+    f"2:{mkv.stem}.ass",
+    f"3:{mkv.stem}.srt"
   ]) # mkvextract "C:\Coding\input.mkv" tracks 2:name.ass 3:name.srt
+
+############ UPLOAD ############
+
+def upload():
+  subs = [f for f in DIRPATH.iterdir() if f.suffix == ".srt" or f.suffix == ".ass"]
+  if len(subs) == 0:
+    raise Exception(f"No subs to upload")
+  url = fr"https://jimaku.cc/api/entries/{CONF['jimaku_id']}/upload"
+  headers = {
+      # 'Content-Type': "multipart/form-data",
+      'Authorization': JIMAKU_API_KEY
+  }
+  files = {}
+  for sub in subs:
+    files[sub.name] = open(sub.name, 'rb')
+  status = "nothing"
+  try:
+    res = requests.post(url, files=files, headers=headers)
+    if res:
+      data = res.content
+      # data = {'errors': 1}
+      log(f"Upload response:\n{data}")
+      if data["errors"] > 0:
+        status = "failed"
+        log(f"An error occurred during the upload")
+      else:
+        status = "uploaded"
+        log("Upload succeeded")
+    else:
+      status = "failed"
+      log(f"No response")
+  except requests.exceptions.RequestException:
+    status = "failed"
+    log('HTTP Request failed')
+    log(f"Status Code: {res.status_code}")
+    log(f"RES: {res}")
+  
+  for sub in subs:
+    files[sub.name].close()
+
+  new_folder = DIRPATH.joinpath(status)
+  new_folder.mkdir(exist_ok=True)
+  for sub in subs:
+    sub.rename(new_folder / sub.name)
+
 
 ############ MAIN ############
 
 if __name__ == '__main__':
-  print(f"Applying to directory: {DIRNAME}")
+  log(f"\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+  log(f"Applying to directory: {DIRNAME}")
   if args.preset:
     setConf(args.preset)
   else:
     setConf(DIRPATH.name)
 
-  mkvs = [f for f in os.listdir() if f.endswith(".mkv")]
+  mkvs = [f for f in DIRPATH.iterdir() if f.suffix == ".mkv"]
 
   if CONF['extract']:
+    if CONF['upload']:
+      ignorePath = Path("ignore.conf")
+      if ignorePath.is_file():
+        with open("ignore.conf", 'r', encoding="utf-8") as f:
+          lines = f.read().splitlines()
+          f.close()
+        mkvs = list(filter(lambda x: x.name not in lines, mkvs))
     if len(mkvs) == 0:
-      print(f"ERROR: mkv not found")
-      input("press enter to exit...")
+      log(f"ERROR: no mkv to extract")
       exit(1)
+
+    extracted_mkvs = []
     for mkv in mkvs:
       if CONF['mode'] == 'CN':
         cn_extract_subs(mkv)
       elif CONF['mode'] == 'TS':
         ts_extract_subs(mkv)
+      extracted_mkvs.append(mkv)
+    
+    if CONF['upload']:
+      with open("ignore.conf", 'a', encoding="utf-8") as f:
+        for path in extracted_mkvs:
+          f.write(f"{path.name}\n")
+        f.close()
+
   
   if CONF['mode'] == 'CN':
     cn_clean()
   elif CONF['mode'] == 'TS':
     ts_fix_styling()
-    
+
+  if CONF['upload'] and apply('jimaku_id'):
+    upload()
+
   # fix_styling()
-  print("\nSuccess!\n")
-  time.sleep(10)
+  print("\nEND OF SCRIPT!!!!!!!!!!!!!\n")
+  # time.sleep(10)
 
 
