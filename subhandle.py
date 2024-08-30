@@ -9,6 +9,7 @@ import ass
 import argparse
 import requests
 from datetime import datetime
+import asyncio
 
 ############ CONFIG ############
 
@@ -22,7 +23,7 @@ PRESET = {
   },
   'example': {
     'fsize': None,
-    'fname': 'aaaa',
+    'fname': None,
     'vertical': None,
     'vertical_top': None,
     'outline': None,
@@ -39,10 +40,10 @@ PRESET = {
     'jimaku_id': 1,
     'extract': False,
     'mode': 'CN',
-    'upload': False,
+    'upload': True,
   }
 }
-# JIMAKU_API_KEY = ''
+JIMAKU_API_KEY = ''
 with open("C:\Coding\Jimaku-Subtitle-Updater\.env") as f:
   lines = f.read().splitlines()
   f.close()
@@ -256,7 +257,8 @@ def cn_extract_subs(mkv):
   ])) # ffprobe -v quiet -print_format json -show_streams -select_streams s input.mkv
 
   if not mkv_json.get("streams"):
-    raise Exception(f"No subtitle streams to extract: {mkv.resolve()}")
+    log(f"No subtitle streams to extract: {mkv.resolve()}")
+    exit(1)
   index = []
   codec_name = []
   num_extracted = 0
@@ -327,10 +329,11 @@ def ts_extract_subs(mkv):
 
 ############ UPLOAD ############
 
-def upload():
+async def upload():
   subs = [f for f in DIRPATH.iterdir() if f.suffix == ".srt" or f.suffix == ".ass"]
   if len(subs) == 0:
-    raise Exception(f"No subs to upload")
+    log(f"No subs to upload")
+    exit(1)
   url = fr"https://jimaku.cc/api/entries/{CONF['jimaku_id']}/upload"
   headers = {
       # 'Content-Type': "multipart/form-data",
@@ -341,9 +344,11 @@ def upload():
     files[sub.name] = open(sub.name, 'rb')
   status = "nothing"
   try:
-    res = requests.post(url, files=files, headers=headers)
+    loop = asyncio.get_event_loop()
+    res = await loop.run_in_executor(None, lambda: requests.post(url, files=files, headers=headers))
+    # res = requests.post(url, files=files, headers=headers)
     if res:
-      data = res.content
+      data = res.json()
       # data = {'errors': 1}
       log(f"Upload response:\n{data}")
       if data["errors"] > 0:
@@ -415,7 +420,7 @@ if __name__ == '__main__':
     ts_fix_styling()
 
   if CONF['upload'] and apply('jimaku_id'):
-    upload()
+    asyncio.run(upload())
 
   # fix_styling()
   print("\nEND OF SCRIPT!!!!!!!!!!!!!\n")
