@@ -27,36 +27,45 @@ PRESET = {
     'vertical': None,
     'vertical_top': None,
     'outline': None,
-    'strip_line': ["^0.*$", "^8.*$"],
+    'strip_dialogue': ["^0.*$", "^8.*$"], #NOTE: "Dialogue: " is not included in the dump
+    'replace_line': [["Style: Jp.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
     'extract': True,
     'mode': 'CN',
     'upload': False,
     'jimaku_id': 0,
   },
   '.extract': {
-    'fsize': -600,
-    'vertical': 999999,
-    'vertical_top': -1000000,
-    'jimaku_id': 1,
+    # 'fsize': 75,
+    # 'vertical': 30,
+    'jimaku_id': 2059,
     'extract': False,
+    'replace_line': [["Style: Jp.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
+    'strip_dialogue': ["^.*,LIVE,.*$"],
+    'linefixes': True,
     'mode': 'CN',
-    'upload': True,
+    'upload': False,
   }
 }
 JIMAKU_API_KEY = ''
 with open("C:\Coding\Jimaku-Subtitle-Updater\.env") as f:
   lines = f.read().splitlines()
   f.close()
-JIMAKU_API_KEY = lines[0]
+JIMAKU_API_KEY = lines[0]  #NOTE: Comment out this line and the three above if api key is specified in this file
+
 STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "scr", "cmt", "info", "next episode", "stf"]
 TC_TRACK = ["cht", "tc", "繁"]
-NORMAL_STYLE = ["dial", "text", "bottom"] 
+NORMAL_STYLE = ["dial", "text", "bottom"]
 TOP_STYLE = ["2", "top", "up"] 
+
+ #NOTE: the following are for managing outliers only, comment out when not in use
+STRIP_STYLES += ["op", "ed", "dorama", "default"]
+NORMAL_STYLE += ["jp"]
 
 ############ DEFAULTS ############
 CONF = {
   'extract': True,
   'mode': 'CN',
+  'linefixes': True,
   'linebreak': False,
   'upload': False
 }
@@ -104,6 +113,7 @@ def log(line):
   print(line)
 
 ############ CN ############
+
 #(CHT)|(CHS)|(TC)|(SC)|(JP)
 #separators optional
 #2-4 groups
@@ -111,12 +121,17 @@ def cn_file_rename(sub):
   tags = "((CH[TS])|([TS]C)|(JP))"
   tagstring1 = fr"(\[{tags}.?{tags}.?{tags}?.?{tags}?\])"
   tagstring2 = fr"( {tags}.?{tags}.?{tags}?.?{tags}?\])"
-  reg1 = re.search(tagstring1, sub.upper())
-  reg2 = re.search(tagstring2, sub.upper())
-  if reg1:
-    sub = sub.replace(reg1.group(1), "")
+  tagstring3 = fr"(\.{tags})"
+  reg1 = re.search(tagstring1, sub, re.IGNORECASE)
+  reg2 = re.search(tagstring2, sub, re.IGNORECASE)
+  reg3 = re.search(tagstring3, sub, re.IGNORECASE)
+  # print("1:",reg3)
+  if reg3:
+    sub = sub.replace(reg3.group(1), "")
   elif reg2:
     sub = sub.replace(reg2.group(1), "]")
+  elif reg1:
+    sub = sub.replace(reg1.group(1), "")
 
   if "[CHS, JPN]" not in sub and "[JPN]" not in sub:
     sub = sub.replace(".ass", "")
@@ -131,9 +146,7 @@ def cn_update_styles(styles):
           if mt in x:
             return "top"
         return True
-       
     return False
-
 
   for s in styles:
     match = matching(s.name.lower())
@@ -171,16 +184,17 @@ def cn_doc_clean(doc, subsets):
     if s.fontname in list(subsets.keys()):
       s.fontname = subsets[s.fontname]
 
-
+  doc.sections['Script Info']['LayoutResX'] = doc.info['PlayResX']
+  doc.sections['Script Info']['LayoutResY'] = doc.info['PlayResY']
   doc.styles = cn_update_styles(doc.styles) #update styles
 
   # strip lines
   def filterEvents(x):
     a = x.style not in removeStyles
     b = True
-    if apply("strip_line"):
-      for i in CONF["strip_line"]:
-        if re.fullmatch(i, x.dump()):
+    if apply("strip_dialogue"):
+      for i in CONF["strip_dialogue"]:
+        if re.fullmatch(i, x.dump()): 
           b = False
           break
     
@@ -200,6 +214,17 @@ def parse_subset(lines):
       return subsets
   
   return False
+
+def regexOps(lines):
+  # print(CONF['replace_line'][0][0])
+  # print(CONF['replace_line'][0][1])
+  res = []
+  for line in lines:
+    for set in CONF['replace_line']:
+      line = re.sub(fr"{set[0]}", fr"{set[1]}", fr"{line}")
+    res.append(line)
+
+  return res
 
 def cn_clean():
   # file renaming
@@ -223,6 +248,7 @@ def cn_clean():
     # if "[JPN]" in sub:
     #   continue
 
+    # handle subsets and line fixes
     with open(sub, 'r', encoding='utf-8-sig') as f:
       doc = ass.parse(f)
       f.seek(0)
@@ -230,61 +256,28 @@ def cn_clean():
       subsets = parse_subset(lines)
       doc = cn_doc_clean(doc, subsets)
       f.close()
-    
-    # if("[CHS, JPN]" in sub):
-    sub = sub.replace("[CHS, JPN]", "[JPN]")
-    if sub in extracted_subs:
-      os.remove(sub)
-      log(f"Replace [JPN] file of same name: {sub}")
 
-    with open(sub, "x" , encoding='utf_8_sig') as f:
+    # create second file with [JPN] appended
+    jpnsub = sub.replace("[CHS, JPN]", "[JPN]")
+    if jpnsub in extracted_subs:
+      os.remove(jpnsub)
+      log(f"Replace [JPN] file of same name: {jpnsub}")
+
+    with open(jpnsub, "x" , encoding='utf_8_sig') as f:
       doc.dump_file(f)
       f.close()
-
-
-def cn_extract_subs(mkv):
-  
-  mkv_json = json.loads(subprocess.check_output([
-    'ffprobe',
-    "-v",
-    "quiet",
-    "-print_format",
-    "json",
-    "-show_streams",
-    "-select_streams",
-    "s",
-    mkv.resolve()
-  ])) # ffprobe -v quiet -print_format json -show_streams -select_streams s input.mkv
-
-  if not mkv_json.get("streams"):
-    log(f"No subtitle streams to extract: {mkv.resolve()}")
-    exit(1)
-  index = []
-  codec_name = []
-  num_extracted = 0
-
-  def matching(x):
-    #skip traditional chinese tracks
-    for m in TC_TRACK:
-      if m in x:
-        return True
-       
-    return False
-
-  for s in mkv_json["streams"]:
-    title = s["tags"]["title"]
-    if num_extracted == 0 and not matching(title.lower()):
-      index.append(s["index"]) 
-      codec_name.append(s["codec_name"])
-      num_extracted += 1
-
-  commands = ['mkvextract', mkv.resolve(), "tracks"]
-  for i in range(len(index)):
-    EXTRACTED_FILEPATHS.append(DIRPATH.joinpath(f"{mkv.stem}.{codec_name[i]}"))
-    EXTRACTED_FILES.append(f"{mkv.stem}.{codec_name[i]}")
-    commands.append(f"{index[i]}:{mkv.stem}.{codec_name[i]}")
-
-  subprocess.run(commands) # mkvextract "C:\Coding\input.mkv" tracks 2:name.ass 3:name.srt
+    
+    # run replace_line regexes
+    # print("1:",jpnsub)
+    if apply('replace_line'):
+      with open(jpnsub, 'r', encoding="utf-8-sig") as f:
+        lines = f.readlines()
+        f.close()
+      lines = regexOps(lines)
+      with open(jpnsub, 'w', encoding="utf-8-sig") as f:
+        f.write(''.join(lines))
+        f.close()
+    
 
 
 ############ TS ############
@@ -327,6 +320,53 @@ def ts_extract_subs(mkv):
     f"3:{mkv.stem}.srt"
   ]) # mkvextract "C:\Coding\input.mkv" tracks 2:name.ass 3:name.srt
 
+############ EXTRACT ############
+
+def extract_subs(mkv):
+  mkv_json = json.loads(subprocess.check_output([
+    'ffprobe',
+    "-v",
+    "quiet",
+    "-print_format",
+    "json",
+    "-show_streams",
+    "-select_streams",
+    "s",
+    mkv.resolve()
+  ])) # ffprobe -v quiet -print_format json -show_streams -select_streams s input.mkv
+
+  if not mkv_json.get("streams"):
+    log(f"No subtitle streams to extract: {mkv.resolve()}")
+    exit(1)
+  index = []
+  codec_name = []
+  num_extracted = 0
+
+  def matching(x):
+    #skip traditional chinese tracks
+    for m in TC_TRACK:
+      if m in x:
+        return True
+       
+    return False
+
+  for s in mkv_json["streams"]:
+    title = s["tags"]["title"]
+    if CONF['mode'] == 'CN' and num_extracted == 0 and not matching(title.lower()):
+      continue
+    index.append(s["index"]) 
+    codec_name.append(s["codec_name"])
+    num_extracted += 1
+    
+
+  commands = ['mkvextract', mkv.resolve(), "tracks"]
+  for i in range(len(index)):
+    EXTRACTED_FILEPATHS.append(DIRPATH.joinpath(f"{mkv.stem}.{codec_name[i]}"))
+    EXTRACTED_FILES.append(f"{mkv.stem}.{codec_name[i]}")
+    commands.append(f"{index[i]}:{mkv.stem}.{codec_name[i]}")
+
+  subprocess.run(commands) # mkvextract "C:\Coding\input.mkv" tracks 2:name.ass 3:name.srt
+
 ############ UPLOAD ############
 
 async def upload():
@@ -343,6 +383,7 @@ async def upload():
   for sub in subs:
     files[sub.name] = open(sub.name, 'rb')
   status = "nothing"
+  res = None
   try:
     loop = asyncio.get_event_loop()
     res = await loop.run_in_executor(None, lambda: requests.post(url, files=files, headers=headers))
@@ -388,7 +429,7 @@ if __name__ == '__main__':
   mkvs = [f for f in DIRPATH.iterdir() if f.suffix == ".mkv"]
 
   if CONF['extract']:
-    if CONF['upload']:
+    if STRICT:
       ignorePath = Path("ignore.conf")
       if ignorePath.is_file():
         with open("ignore.conf", 'r', encoding="utf-8") as f:
@@ -402,22 +443,22 @@ if __name__ == '__main__':
     extracted_mkvs = []
     for mkv in mkvs:
       if CONF['mode'] == 'CN':
-        cn_extract_subs(mkv)
+        extract_subs(mkv)
       elif CONF['mode'] == 'TS':
         ts_extract_subs(mkv)
       extracted_mkvs.append(mkv)
     
-    if CONF['upload']:
+    if STRICT:
       with open("ignore.conf", 'a', encoding="utf-8") as f:
         for path in extracted_mkvs:
           f.write(f"{path.name}\n")
         f.close()
 
-  
-  if CONF['mode'] == 'CN':
-    cn_clean()
-  elif CONF['mode'] == 'TS':
-    ts_fix_styling()
+  if CONF['linefixes']:
+    if CONF['mode'] == 'CN':
+      cn_clean()
+    elif CONF['mode'] == 'TS':
+      ts_fix_styling()
 
   if CONF['upload'] and apply('jimaku_id'):
     asyncio.run(upload())
