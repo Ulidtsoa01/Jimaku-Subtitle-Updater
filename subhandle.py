@@ -10,63 +10,9 @@ import argparse
 import requests
 from datetime import datetime
 import asyncio
+from preset import *
 
-############ CONFIG ############
-
-PRESET = {
-  'encoded': {
-    'mode': 'TS'
-  },
-  '[Nekomoe kissaten&LoliHouse] Monogatari Series - Off & Monster Season': {
-    'fsize': 80,
-    'vertical': 54,
-    'upload': True,
-    'jimaku_id': 6152,
-  },
-  '[Billion Meta Lab]': {
-    'fsize': 80,
-    'vertical': 54,
-    'chinese': "CHT",
-    'outline': 3,
-    'extract': False,
-  },
-  'example': {
-    'fsize': None,
-    'fname': None,
-    'outline': None,
-    'vertical': None,
-    'vertical_top': None,
-    'strip_dialogue': ["^0.*$", "^8.*$"], #NOTE: "Dialogue: " is not included in the dump
-    'replace_line': [["Style: Jp.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
-    'extract': True,
-    'mode': 'CN',
-    'upload': False,
-    'jimaku_id': 0,
-    'chinese': "CHS",
-    'STRIP_STYLES': ["op", "ed", "dorama", "default"],
-    'NORMAL_STYLE': ["default"]
-  },
-  '.extract': {
-    'fsize': 80,
-    'vertical': 54,
-    'spacing': 0.0,
-    # 'jimaku_id': 2059,
-    # 'strip_dialogue': ["^.*,LIVE,.*$"],
-    # 'replace_line': [["Style: JP.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
-    # 'chinese': "CHS",
-    'extract': False,
-    'linefixes': True,
-    'mode': 'CN',
-    'upload': False,
-    'STRIP_STYLES': ["text"],
-    'NORMAL_STYLE': ["jp"],
-  }
-}
-JIMAKU_API_KEY = ''
-with open(r"C:\Coding\Jimaku-Subtitle-Updater\.env") as f:
-  lines = f.read().splitlines()
-  f.close()
-JIMAKU_API_KEY = lines[0]  #NOTE: Comment out this line and the three above if api key is specified in this file
+############ DEFAULTS ############
 
 STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "furi" "scr", "cmt", "info", "next episode", "stf", "op_sc", "op_tc"]
 TC_TRACK = ["cht", "tc", "繁"]
@@ -74,7 +20,6 @@ NORMAL_STYLE = ["dial", "text", "bottom", "down", "top", "up"]
 TOP_STYLE = ["2", "top", "up"]
 EXCLUDE_STYLE = ["op", "ed"]
 
-############ DEFAULTS ############
 CONF = {
   'extract': True,
   'mode': 'CN',
@@ -91,6 +36,7 @@ parser.add_argument('folder', nargs='?', default=os.getcwd())
 parser.add_argument('-p', '--preset')  
 parser.add_argument('-s', '--strict', action='store_true')    
 args = parser.parse_args()
+# pyfile_path = os.path.dirname(os.path.realpath(__file__))
 DIRPATH = Path(args.folder)
 DIRNAME = DIRPATH.resolve()
 STRICT = args.strict
@@ -103,7 +49,7 @@ EXTRACTED_FILES = []
 EXTRACTED_FILEPATHS = []
 
 def apply(confField):
-  if confField in CONF and (CONF[confField] or CONF[confField] == 0):
+  if confField in CONF and (CONF[confField] or CONF[confField] is 0):
     return True
   return False
 

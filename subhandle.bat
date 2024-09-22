@@ -1,2 +1,2 @@
-python "C:\Coding\Jimaku-Subtitle-Updater\subhandle.py" "%~dp0\"
+python "<Insert path to subhandle.py file here>" "%~dp0\"
 pause
