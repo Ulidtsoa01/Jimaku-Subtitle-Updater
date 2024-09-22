@@ -11,6 +11,7 @@ import requests
 from datetime import datetime
 import asyncio
 from preset import *
+from secret import secrets 
 
 ############ DEFAULTS ############
 
@@ -30,6 +31,8 @@ CONF = {
 }
 
 ############ Shared ############
+
+JIMAKU_API_KEY = secrets.get('JIMAKU_API_KEY', JIMAKU_API_KEY) 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('folder', nargs='?', default=os.getcwd())
