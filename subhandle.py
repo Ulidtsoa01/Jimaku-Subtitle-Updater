@@ -47,17 +47,19 @@ PRESET = {
     'NORMAL_STYLE': ["default"]
   },
   '.extract': {
-    'fsize': 75,
-    'vertical': 30,
+    'fsize': 80,
+    'vertical': 54,
+    'spacing': 0.0,
     # 'jimaku_id': 2059,
     # 'strip_dialogue': ["^.*,LIVE,.*$"],
-    # 'replace_line': [["Style: Jp.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
-    'chinese': "CHS",
+    # 'replace_line': [["Style: JP.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
+    # 'chinese': "CHS",
     'extract': False,
     'linefixes': True,
-    'mode': 'TS',
+    'mode': 'CN',
     'upload': False,
-    # 'NORMAL_STYLE': ["default"],
+    'STRIP_STYLES': ["text"],
+    'NORMAL_STYLE': ["jp"],
   }
 }
 JIMAKU_API_KEY = ''
@@ -66,10 +68,11 @@ with open(r"C:\Coding\Jimaku-Subtitle-Updater\.env") as f:
   f.close()
 JIMAKU_API_KEY = lines[0]  #NOTE: Comment out this line and the three above if api key is specified in this file
 
-STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "scr", "cmt", "info", "next episode", "stf"]
+STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "furi" "scr", "cmt", "info", "next episode", "stf", "op_sc", "op_tc"]
 TC_TRACK = ["cht", "tc", "繁"]
 NORMAL_STYLE = ["dial", "text", "bottom", "down", "top", "up"]
 TOP_STYLE = ["2", "top", "up"]
+EXCLUDE_STYLE = ["op", "ed"]
 
 ############ DEFAULTS ############
 CONF = {
@@ -100,12 +103,12 @@ EXTRACTED_FILES = []
 EXTRACTED_FILEPATHS = []
 
 def apply(confField):
-  if confField in CONF and CONF[confField]:
+  if confField in CONF and (CONF[confField] or CONF[confField] == 0):
     return True
   return False
 
 def setConf(presetname):
-  global STRIP_STYLES, NORMAL_STYLE
+  global STRIP_STYLES, NORMAL_STYLE, EXCLUDE_STYLE
 
   for p in PRESET.keys():
     if p == presetname:
@@ -115,6 +118,7 @@ def setConf(presetname):
 
       if apply("STRIP_STYLES"): STRIP_STYLES+=CONF["STRIP_STYLES"]
       if apply("NORMAL_STYLE"): NORMAL_STYLE+=CONF["NORMAL_STYLE"]
+      if apply("EXCLUDE_STYLE"): EXCLUDE_STYLE+=CONF["EXCLUDE_STYLE"]
 
       return True
   return False
@@ -136,11 +140,10 @@ def cn_file_rename(sub):
   tags = "((CH[TS])|([TS]C)|(JP))"
   tagstring1 = fr"(\[{tags}.?{tags}.?{tags}?.?{tags}?\])"
   tagstring2 = fr"( {tags}.?{tags}.?{tags}?.?{tags}?\])"
-  tagstring3 = fr"(\.{tags})"
+  tagstring3 = fr"(\.{tags}{tags}?)"
   reg1 = re.search(tagstring1, sub, re.IGNORECASE)
   reg2 = re.search(tagstring2, sub, re.IGNORECASE)
   reg3 = re.search(tagstring3, sub, re.IGNORECASE)
-  # print("1:",reg3)
   if reg3:
     sub = sub.replace(reg3.group(1), "")
   elif reg2:
@@ -156,10 +159,14 @@ def cn_file_rename(sub):
 
 def cn_update_styles(styles):
   def matching(x):
-    for m in NORMAL_STYLE: #need to match to apply style options
-      if m in x:
-        for mt in TOP_STYLE: #need to match to apply vertical positioning
-          if mt in x:
+    # global EXCLUDE_STYLE, NORMAL_STYLE, TOP_STYLE
+    for es in EXCLUDE_STYLE:
+      if es in x:
+        return False
+    for ns in NORMAL_STYLE: #need to match to apply style options
+      if ns in x:
+        for ts in TOP_STYLE: #need to match to apply vertical positioning
+          if ts in x:
             return "top"
         return True
     return False
@@ -170,6 +177,7 @@ def cn_update_styles(styles):
       if apply('fsize'): s.fontsize = CONF['fsize']
       if apply('fname'): s.fontname = CONF['fname']
       if apply('outline'): s.outline = CONF['outline']
+      if apply('spacing'): s.spacing = CONF['spacing']
       if match == "top":
         if apply('vertical_top'): s.margin_v = CONF['vertical_top']
       else:
@@ -320,22 +328,22 @@ def ts_regexOps(lines):
 def ts_fix_styling():
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
   for sub in extracted_subs:
-    with open(sub, 'r', encoding="utf-8-sig") as f:
+    with open(sub, 'r', encoding="utf_8_sig") as f:
       doc = ass.parse(f)
       doc.sections['Script Info']['LayoutResX'] = doc.info['PlayResX']
       doc.sections['Script Info']['LayoutResY'] = doc.info['PlayResY']
       f.close()
 
-    with open(sub, "w" , encoding='utf_8_sig') as f:
+    with open(sub, "w" , encoding='utf_8') as f:
       doc.dump_file(f)
       f.close()
     
-    with open(sub, 'r', encoding="utf-8-sig") as f:
+    with open(sub, 'r', encoding="utf_8_sig") as f:
       lines = f.readlines()
       lines = ts_regexOps(lines)
       f.close()
     
-    with open(sub, 'w', encoding="utf-8-sig") as f:
+    with open(sub, 'w', encoding="utf_8") as f:
       f.write(''.join(lines))
       f.close()
 
