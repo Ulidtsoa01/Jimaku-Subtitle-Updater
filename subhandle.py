@@ -11,28 +11,15 @@ import requests
 from datetime import datetime
 import asyncio
 from preset import *
-from secret import secrets 
-
-############ DEFAULTS ############
-
-STRIP_STYLES = ["cn", "ch", "zh", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "furi" "scr", "cmt", "info", "next episode", "stf", "op_sc", "op_tc"]
-TC_TRACK = ["cht", "tc", "繁"]
-NORMAL_STYLE = ["dial", "text", "bottom", "down", "top", "up"]
-TOP_STYLE = ["2", "top", "up"]
-EXCLUDE_STYLE = ["op", "ed"]
-
-CONF = {
-  'extract': True,
-  'mode': 'CN',
-  'linefixes': True,
-  'linebreak': False,
-  'upload': False,
-  'chinese': "CHS"
-}
+from lineops import *
 
 ############ Shared ############
 
-JIMAKU_API_KEY = secrets.get('JIMAKU_API_KEY', JIMAKU_API_KEY) 
+executingDir = Path(__file__).parent.resolve()
+print(f"Running in: {executingDir}")
+if executingDir.joinpath("secret.py").is_file():
+  from secret import secrets
+  JIMAKU_API_KEY = secrets.get('JIMAKU_API_KEY', JIMAKU_API_KEY)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('folder', nargs='?', default=os.getcwd())
@@ -56,20 +43,20 @@ def apply(confField):
     return True
   return False
 
-def setConf(presetname):
-  global STRIP_STYLES, NORMAL_STYLE, EXCLUDE_STYLE
-
-  for p in PRESET.keys():
-    if p == presetname:
-      for setting in PRESET[p].keys():
-        CONF[setting] = PRESET[p][setting]
-      log(f"PRESET FOUND: {p}")
-
-      if apply("STRIP_STYLES"): STRIP_STYLES+=CONF["STRIP_STYLES"]
-      if apply("NORMAL_STYLE"): NORMAL_STYLE+=CONF["NORMAL_STYLE"]
-      if apply("EXCLUDE_STYLE"): EXCLUDE_STYLE+=CONF["EXCLUDE_STYLE"]
-
-      return True
+def setConf(preset_name):  
+  if preset_name in PRESET.keys():
+    mode_name =  PRESET[preset_name]['mode'] if 'mode' in PRESET[preset_name].keys() else CONF['mode']
+    #apply mode before preset
+    if mode_name in MODE.keys():
+      for setting in MODE[mode_name].keys():
+        CONF[setting] = MODE[mode_name][setting]
+      log(f"MODE FOUND: {mode_name}")
+      
+    for setting in PRESET[preset_name].keys():
+      CONF[setting] = PRESET[preset_name][setting]
+    log(f"PRESET FOUND: {preset_name}")
+    log(CONF)
+    return True
   return False
 
 def log(line):
@@ -80,7 +67,7 @@ def log(line):
   
   print(line)
 
-############ CN ############
+############ CN ONLY ############
 
 #(CHT)|(CHS)|(TC)|(SC)|(JP)
 #separators optional
@@ -100,159 +87,80 @@ def cn_file_rename(sub):
   elif reg1:
     sub = sub.replace(reg1.group(1), "")
 
-  chinese = CONF["chinese"]
-  if f"[{CONF['chinese']}, JPN]" not in sub and "[JPN]" not in sub:
+  old_tag = CONF["OLD_LANG_TAG"]
+  new_tag = CONF["NEW_LANG_TAG"]
+  if fr"[{old_tag}, {new_tag}]" not in sub and fr"[{new_tag}]" not in sub:
     sub = sub.replace(".ass", "")
-    sub+=fr"[{CONF['chinese']}, JPN].ass"
+    sub+=fr"[{old_tag}, {new_tag}].ass"
   return sub
 
-def cn_update_styles(styles):
-  def matching(x):
-    # global EXCLUDE_STYLE, NORMAL_STYLE, TOP_STYLE
-    for es in EXCLUDE_STYLE:
-      if es in x:
-        return False
-    for ns in NORMAL_STYLE: #need to match to apply style options
-      if ns in x:
-        for ts in TOP_STYLE: #need to match to apply vertical positioning
-          if ts in x:
-            return "top"
-        return True
-    return False
-
-  for s in styles:
-    match = matching(s.name.lower())
-    if match:
-      if apply('fsize'): s.fontsize = CONF['fsize']
-      if apply('fname'): s.fontname = CONF['fname']
-      if apply('outline'): s.outline = CONF['outline']
-      if apply('spacing'): s.spacing = CONF['spacing']
-      if match == "top":
-        if apply('vertical_top'): s.margin_v = CONF['vertical_top']
-      else:
-        if apply('vertical'): s.margin_v = CONF['vertical']
-
-  return styles
-
-def cn_doc_clean(doc, subsets):
-  # strip styles
-  def matching(x):
-    x = x.lower()
-    for str in STRIP_STYLES:
-      if str in x: return True
-    return False
-
-  keepStyles = []
-  removeStyles = []
-  for i in range(len(doc.styles)):
-    name = doc.styles[i].name
-    if matching(name): 
-      removeStyles.append(name)
-    else: 
-      keepStyles.append(name)
-  doc.styles = list(filter(lambda x: x.name in keepStyles, doc.styles))
-  
-  #replace font subsets
-  for s in doc.styles:
-    if s.fontname in list(subsets.keys()):
-      s.fontname = subsets[s.fontname]
-
-  doc.sections['Script Info']['LayoutResX'] = doc.info['PlayResX']
-  doc.sections['Script Info']['LayoutResY'] = doc.info['PlayResY']
-  doc.styles = cn_update_styles(doc.styles) #update styles
-
-  # strip lines
-  def filterEvents(x):
-    a = x.style not in removeStyles
-    b = True
-    if apply("strip_dialogue"):
-      for i in CONF["strip_dialogue"]:
-        if re.fullmatch(i, x.dump()): 
-          b = False
-          break
-    
-    return True if a and b else False
-    
-  doc.events = list(filter(filterEvents, doc.events))
-
-  return doc
-
-def parse_subset(lines):
-  subsets = {}
-  for line in lines:
-    match = re.match("; Font Subset: (.{8}) - (.*)", line, re.IGNORECASE)
-    if(match):
-      subsets[match.group(1)] = match.group(2)
-    if(re.search(r"\[V4\+? Styles\]", line)):
-      return subsets
-  
-  return False
-
-def regexOps(lines):
-  # print(CONF['replace_line'][0][0])
-  # print(CONF['replace_line'][0][1])
-  res = []
-  for line in lines:
-    for set in CONF['replace_line']:
-      line = re.sub(fr"{set[0]}", fr"{set[1]}", fr"{line}")
-    res.append(line)
-
-  return res
-
-def cn_clean():
+def file_handling():
   # file renaming
   # only apply to extracted files if extracting is on
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
   extractWhich =  EXTRACTED_FILES if CONF['extract'] else extracted_subs
-  for sub in extractWhich:
-    old = sub
-    sub = cn_file_rename(sub)
-    if sub != old:
-      if sub in extracted_subs:
-        os.remove(sub)
-        log(f"Replace dual file of same name: {sub}")
-      os.rename(old, sub)
-  
+
+  # rename original file according to language tag conf
+  if CONF['mode'] == 'CN':
+    for sub in extractWhich:
+      old = sub
+      sub = cn_file_rename(sub)
+      if sub != old:
+        if sub in extracted_subs:
+          os.remove(sub)
+          log(f"Replace dual file of same name: {sub}")
+        os.rename(old, sub)
+    
 
   # handle new file
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
   for sub in extracted_subs:
     log(f"Working on sub file: {sub}")
-    # if "[JPN]" in sub:
-    #   continue
 
-    # handle subsets and line fixes
+
+    # handle subsets and lineops
     with open(sub, 'r', encoding='utf-8-sig') as f:
       doc = ass.parse(f)
       f.seek(0)
       lines = f.readlines()
       subsets = parse_subset(lines)
-      doc = cn_doc_clean(doc, subsets)
+      doc = doc_clean(doc, subsets)
       f.close()
 
-    # create second file with [JPN] appended
-    jpnsub = sub.replace(f"[{CONF['chinese']}, JPN]", "[JPN]")
-    if jpnsub in extracted_subs:
-      os.remove(jpnsub)
-      log(f"Replace [JPN] file of same name: {jpnsub}")
+    # create second file with different name depending on conf
+    new_file = sub
+    if CONF['mode'] == 'CN':
+      old_tag = CONF['OLD_LANG_TAG']
+      new_tag = CONF['NEW_LANG_TAG']
+      new_file = sub.replace(f"[{old_tag}, {new_tag}]", f"[{new_tag}]")
+    elif apply('append_filename'):
+      new_file = new_file.replace(CONF['append_filename']+'.ass', '.ass')
+      print(0, CONF['append_filename']+'.ass$')
+      print(1, new_file)
+      new_file = re.sub('.ass$', CONF['append_filename']+'.ass', new_file)
+      print(2, new_file)
 
-    with open(jpnsub, "x" , encoding='utf_8_sig') as f:
+
+    if new_file in extracted_subs:
+      os.remove(new_file)
+      log(f"Replace [JPN] file of same name: {new_file}")
+
+    with open(new_file, "x" , encoding='utf_8_sig') as f:
       doc.dump_file(f)
       f.close()
     
     # run replace_line regexes
     if apply('replace_line'):
-      with open(jpnsub, 'r', encoding="utf-8-sig") as f:
+      with open(new_file, 'r', encoding="utf-8-sig") as f:
         lines = f.readlines()
         f.close()
       lines = regexOps(lines)
-      with open(jpnsub, 'w', encoding="utf-8-sig") as f:
+      with open(new_file, 'w', encoding="utf-8-sig") as f:
         f.write(''.join(lines))
         f.close()
       
       log(f"Apply replace_line regexes: {CONF['replace_line']}")
     
-
 
 ############ TS ############
 
@@ -299,7 +207,7 @@ def ts_fix_styling():
 ############ EXTRACT ############
 
 def extract_subs(mkv):
-  mkv_json = json.loads(subprocess.check_output([
+  commands = [
     'ffprobe',
     "-v",
     "quiet",
@@ -309,7 +217,11 @@ def extract_subs(mkv):
     "-select_streams",
     "s",
     mkv.resolve()
-  ])) # ffprobe -v quiet -print_format json -show_streams -select_streams s file.mkv
+  ]
+  if PATH_TO_FFPROBE:
+    commands[0] = Path(PATH_TO_FFPROBE).resolve()
+    print("Using ffprobe in:", commands[0])
+  mkv_json = json.loads(subprocess.check_output(commands)) # ffprobe -v quiet -print_format json -show_streams -select_streams s file.mkv
 
   if not mkv_json.get("streams"):
     log(f"No subtitle streams to extract: {mkv.resolve()}")
@@ -318,9 +230,9 @@ def extract_subs(mkv):
   codec_name = []
   num_extracted = 0
 
+  # skip mkv tracks
   def matching(x):
-    #skip traditional chinese tracks
-    for m in TC_TRACK:
+    for m in CONF["SKIP_MKV_TRACK"]:
       if m in x:
         return True
        
@@ -329,7 +241,7 @@ def extract_subs(mkv):
   for s in mkv_json["streams"]:
     title = ""
     if "title" in s["tags"]: title = s["tags"]["title"]
-    if CONF['mode'] == 'CN' and (num_extracted > 0 or matching(title.lower())):
+    if apply("SKIP_MKV_TRACK") and (num_extracted > 0 or matching(title.lower())):
       log(f"Skipped extracting track: {title}")
       continue
     index.append(s["index"]) 
@@ -342,6 +254,9 @@ def extract_subs(mkv):
     
 
   commands = ['mkvextract', mkv.resolve(), "tracks"]
+  if PATH_TO_MKVEXTRACT:
+    commands[0] = Path(PATH_TO_MKVEXTRACT).resolve()
+    print("Using mkvextract in:", commands[0])
   for i in range(len(index)):
     EXTRACTED_FILEPATHS.append(DIRPATH.joinpath(f"{mkv.stem}.{codec_name[i]}"))
     EXTRACTED_FILES.append(f"{mkv.stem}.{codec_name[i]}")
@@ -409,7 +324,7 @@ if __name__ == '__main__':
 
   mkvs = [f for f in DIRPATH.iterdir() if f.suffix == ".mkv"]
 
-  if CONF['extract']:
+  if CONF['extract'] and (CONF['mode'] == 'TS' or CONF['mode'] == 'CN'):
     if STRICT:
       ignorePath = Path("ignore.conf")
       if ignorePath.is_file():
@@ -432,11 +347,13 @@ if __name__ == '__main__':
           f.write(f"{path.name}\n")
         f.close()
 
-  if CONF['linefixes']:
-    if CONF['mode'] == 'CN':
-      cn_clean()
-    elif CONF['mode'] == 'TS':
+  if CONF['lineops']:
+    if CONF['mode'] == 'TS':
       ts_fix_styling()
+    else:
+      file_handling()
+
+  # if CONF['linebreak']:
 
   if CONF['upload'] and apply('jimaku_id'):
     asyncio.run(upload())
