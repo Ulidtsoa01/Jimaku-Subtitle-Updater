@@ -7,11 +7,11 @@ import time
 import sys
 import ass
 import argparse
-import requests
 from datetime import datetime
 import asyncio
 from preset import *
 from lineops import *
+from fileops import *
 
 ############ Shared ############
 
@@ -27,10 +27,11 @@ parser.add_argument('-p', '--preset')
 parser.add_argument('-s', '--strict', action='store_true')    
 args = parser.parse_args()
 # pyfile_path = os.path.dirname(os.path.realpath(__file__))
-DIRPATH = Path(args.folder)
-DIRNAME = DIRPATH.resolve()
+OUTPUT_DIR_PATH = Path(args.folder)
+OUTPUT_DIR_NAME = OUTPUT_DIR_PATH.resolve()
 STRICT = args.strict
-os.chdir(DIRNAME)
+CONF['strict'] = STRICT
+os.chdir(OUTPUT_DIR_NAME)
 if args.strict and not Path("ignore.conf").is_file():
   print("ignore.conf not present")
   exit(0)
@@ -38,10 +39,6 @@ if args.strict and not Path("ignore.conf").is_file():
 EXTRACTED_FILES = []
 EXTRACTED_FILEPATHS = []
 
-def apply(confField):
-  if confField in CONF and (CONF[confField] or CONF[confField] is 0):
-    return True
-  return False
 
 def setConf(preset_name):  
   if preset_name in PRESET.keys():
@@ -59,13 +56,7 @@ def setConf(preset_name):
     return True
   return False
 
-def log(line):
-  if STRICT:
-    with open("upload.log", 'a', encoding="utf-8") as f:
-      f.write(f"{line}\n")
-      f.close()
-  
-  print(line)
+
 
 ############ CN ONLY ############
 
@@ -87,8 +78,8 @@ def cn_file_rename(sub):
   elif reg1:
     sub = sub.replace(reg1.group(1), "")
 
-  old_tag = CONF["OLD_LANG_TAG"]
-  new_tag = CONF["NEW_LANG_TAG"]
+  old_tag = CONF["old_lang_tag"]
+  new_tag = CONF["new_lang_tag"]
   if fr"[{old_tag}, {new_tag}]" not in sub and fr"[{new_tag}]" not in sub:
     sub = sub.replace(".ass", "")
     sub+=fr"[{old_tag}, {new_tag}].ass"
@@ -123,21 +114,23 @@ def file_handling():
       doc = ass.parse(f)
       f.seek(0)
       lines = f.readlines()
-      subsets = parse_subset(lines)
-      doc = doc_clean(doc, subsets)
+      subsets = parse_subset(lines) if CONF['parse_subset'] else False
+      doc = doc_strip_styles(doc, CONF)
+      doc = doc_update_styles(doc, subsets, CONF)
       f.close()
 
     # create second file with different name depending on conf
     new_file = sub
     if CONF['mode'] == 'CN':
-      old_tag = CONF['OLD_LANG_TAG']
-      new_tag = CONF['NEW_LANG_TAG']
+      old_tag = CONF['old_lang_tag']
+      new_tag = CONF['new_lang_tag']
       new_file = sub.replace(f"[{old_tag}, {new_tag}]", f"[{new_tag}]")
     elif apply('append_filename'):
+      # new_file = new_file.replace(CONF['append_filename']+'.ass', '.ass')
       new_file = new_file.replace(CONF['append_filename']+'.ass', '.ass')
       print(0, CONF['append_filename']+'.ass$')
       print(1, new_file)
-      new_file = re.sub('.ass$', CONF['append_filename']+'.ass', new_file)
+      new_file = re.sub('\.ass$', CONF['append_filename']+'.ass', new_file)
       print(2, new_file)
 
 
@@ -206,7 +199,33 @@ def ts_fix_styling():
 
 ############ EXTRACT ############
 
-def extract_subs(mkv):
+F2HMAP = {'　': ' ', '！': '!', '＂': '"', '＃': '#', '＄': '$', '％': '%', '＆': '&', 
+          '＇': "'", '（': '(', '）': ')', '＊': '*', '＋': '+', '，': ',', '－': '-', 
+          '．': '.', '／': '/', 
+          '０': '0', '１': '1', '２': '2', '３': '3', '４': '4', '５': '5', '６': '6', 
+          '７': '7', '８': '8', '９': '9', 
+          '：': ':', '；': ';', '＜': '<', '＝': '=', '＞': '>', '？': '?', '＠': '@',
+          'Ａ': 'A', 'Ｂ': 'B', 'Ｃ': 'C', 'Ｄ': 'D', 'Ｅ': 'E', 'Ｆ': 'F', 'Ｇ': 'G',
+          'Ｈ': 'H', 'Ｉ': 'I', 'Ｊ': 'J', 'Ｋ': 'K', 'Ｌ': 'L', 'Ｍ': 'M', 'Ｎ': 'N',
+          'Ｏ': 'O', 'Ｐ': 'P', 'Ｑ': 'Q', 'Ｒ': 'R', 'Ｓ': 'S', 'Ｔ': 'T', 'Ｕ': 'U',
+          'Ｖ': 'V', 'Ｗ': 'W', 'Ｘ': 'X', 'Ｙ': 'Y', 'Ｚ': 'Z', 
+          '［': '[', '＼': '\\', 
+          '］': ']', '＾': '^', '＿': '_', '｀': '`',
+          'ａ': 'a', 'ｂ': 'b', 'ｃ': 'c', 'ｄ': 'd', 'ｅ': 'e', 'ｆ': 'f', 'ｇ': 'g',
+          'ｈ': 'h', 'ｉ': 'i', 'ｊ': 'j', 'ｋ': 'k', 'ｌ': 'l', 'ｍ': 'm', 'ｎ': 'n',
+          'ｏ': 'o', 'ｐ': 'p', 'ｑ': 'q', 'ｒ': 'r', 'ｓ': 's', 'ｔ': 't', 'ｕ': 'u',
+          'ｖ': 'v', 'ｗ': 'w', 'ｘ': 'x', 'ｙ': 'y', 'ｚ': 'z', 
+          '｛': '{', '｜': '|', '｝': '}'}
+
+def get_normalize_filename(string):
+  full2half = ''.join(F2HMAP.get(c, c) for c in string)
+  valid_map = {'<': '＜', '>': '＞', ':': ' - ', '/': '／', '\\': '＼', '|': '｜', '?': '？', '*': ''}
+  valid_filename = ''.join(valid_map.get(c, c) for c in full2half)
+  return valid_filename
+  
+
+
+def extract_subs(mkv, skip_mkv_track, normalize_filename):
   commands = [
     'ffprobe',
     "-v",
@@ -232,7 +251,7 @@ def extract_subs(mkv):
 
   # skip mkv tracks
   def matching(x):
-    for m in CONF["SKIP_MKV_TRACK"]:
+    for m in skip_mkv_track:
       if m in x:
         return True
        
@@ -241,7 +260,7 @@ def extract_subs(mkv):
   for s in mkv_json["streams"]:
     title = ""
     if "title" in s["tags"]: title = s["tags"]["title"]
-    if apply("SKIP_MKV_TRACK") and (num_extracted > 0 or matching(title.lower())):
+    if apply("skip_mkv_track") and (num_extracted > 0 or matching(title.lower())):
       log(f"Skipped extracting track: {title}")
       continue
     index.append(s["index"]) 
@@ -252,79 +271,37 @@ def extract_subs(mkv):
       codec_name.append(s["codec_name"])
     num_extracted += 1
     
+  extracted_name = mkv.stem
+  if normalize_filename:
+    extracted_name = get_normalize_filename(extracted_name)
+    log(f"Normalized name: {extracted_name}")
 
   commands = ['mkvextract', mkv.resolve(), "tracks"]
   if PATH_TO_MKVEXTRACT:
     commands[0] = Path(PATH_TO_MKVEXTRACT).resolve()
     print("Using mkvextract in:", commands[0])
   for i in range(len(index)):
-    EXTRACTED_FILEPATHS.append(DIRPATH.joinpath(f"{mkv.stem}.{codec_name[i]}"))
-    EXTRACTED_FILES.append(f"{mkv.stem}.{codec_name[i]}")
-    commands.append(f"{index[i]}:{mkv.stem}.{codec_name[i]}")
+    EXTRACTED_FILEPATHS.append(OUTPUT_DIR_PATH.joinpath(f"{extracted_name}.{codec_name[i]}"))
+    EXTRACTED_FILES.append(f"{extracted_name}.{codec_name[i]}")
+    commands.append(f"{index[i]}:{extracted_name}.{codec_name[i]}")
 
   subprocess.run(commands) # mkvextract "C:\Coding\input.mkv" tracks 2:name.ass 3:name.srt
 
-############ UPLOAD ############
-
-async def upload():
-  subs = [f for f in DIRPATH.iterdir() if f.suffix == ".srt" or f.suffix == ".ass"]
-  if len(subs) == 0:
-    log(f"No subs to upload")
-    exit(1)
-  url = fr"https://jimaku.cc/api/entries/{CONF['jimaku_id']}/upload"
-  headers = {
-      # 'Content-Type': "multipart/form-data",
-      'Authorization': JIMAKU_API_KEY
-  }
-  files = {}
-  for sub in subs:
-    files[sub.name] = open(sub.name, 'rb')
-  status = "nothing"
-  res = None
-  try:
-    loop = asyncio.get_event_loop()
-    res = await loop.run_in_executor(None, lambda: requests.post(url, files=files, headers=headers))
-    # res = requests.post(url, files=files, headers=headers)
-    if res:
-      data = res.json()
-      log(f"Upload response:\n{data}")
-      if data["errors"] > 0:
-        status = "failed"
-        log(f"An error occurred during the upload")
-      else:
-        status = "uploaded"
-        log("Upload succeeded")
-    else:
-      status = "failed"
-      log(f"No response")
-  except requests.exceptions.RequestException:
-    status = "failed"
-    log('HTTP Request failed')
-    log(f"Status Code: {res.status_code}")
-    log(f"RES: {res}")
-  
-  for sub in subs:
-    files[sub.name].close()
-
-  new_folder = DIRPATH.joinpath(status)
-  new_folder.mkdir(exist_ok=True)
-  for sub in subs:
-    sub.rename(new_folder / sub.name)
 
 
 ############ MAIN ############
 
 if __name__ == '__main__':
   log(f"\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-  log(f"Applying to directory: {DIRNAME}")
+  log(f"Applying to directory: {OUTPUT_DIR_NAME}")
   if args.preset:
     setConf(args.preset)
   else:
-    setConf(DIRPATH.name)
+    setConf(OUTPUT_DIR_PATH.name)
 
-  mkvs = [f for f in DIRPATH.iterdir() if f.suffix == ".mkv"]
+  mkvs = [f for f in OUTPUT_DIR_PATH.iterdir() if f.suffix == ".mkv"]
 
-  if CONF['extract'] and (CONF['mode'] == 'TS' or CONF['mode'] == 'CN'):
+  if CONF['extract']:
     if STRICT:
       ignorePath = Path("ignore.conf")
       if ignorePath.is_file():
@@ -338,7 +315,7 @@ if __name__ == '__main__':
 
     extracted_mkvs = []
     for mkv in mkvs:
-      extract_subs(mkv)
+      extract_subs(mkv, skip_mkv_track=CONF["skip_mkv_track"], normalize_filename=apply("normalize_filename"))
       extracted_mkvs.append(mkv)
     
     if STRICT:
@@ -356,7 +333,7 @@ if __name__ == '__main__':
   # if CONF['linebreak']:
 
   if CONF['upload'] and apply('jimaku_id'):
-    asyncio.run(upload())
+    asyncio.run(upload(output_dir_path=OUTPUT_DIR_PATH, jimaku_id=CONF['jimaku_id'], jimaku_api_key=JIMAKU_API_KEY))
 
   # fix_styling()
   print("\nEND OF SCRIPT!!!!!!!!!!!!!\n")

@@ -1,19 +1,15 @@
-from preset import *
 import re
+from preset import *
+from utils import *
 
-def apply(confField):
-  if confField in CONF and (CONF[confField] or CONF[confField] is 0):
-    return True
-  return False
-
-def update_styles(styles):
+def update_styles(styles, CONF):
   def matching(x):
-    for es in CONF["SKIP_STYLE"]:
+    for es in CONF["skip_style"]:
       if es in x:
         return False
-    for ns in CONF["APPLY_STYLE"]: #need to match to apply style options
+    for ns in CONF["apply_style"]: #need to match to apply style options
       if ns in x:
-        for ts in CONF["TOP_STYLE"]: #need to match to apply vertical positioning
+        for ts in CONF["top_style"]: #need to match to apply vertical positioning
           if ts in x:
             return "top"
         return True
@@ -69,17 +65,32 @@ def update_styles(styles):
         s.back_color.b = CONF['back_color'][2]
         s.back_color.a = CONF['back_color'][3]
       if match == "top":
-        if apply('vertical_top'): s.margin_v = CONF['vertical_top']
+        if apply('top_margin_v'): s.margin_v = CONF['top_margin_v']
       else:
-        if apply('vertical'): s.margin_v = CONF['vertical']
+        if apply('margin_v'): s.margin_v = CONF['margin_v']
 
   return styles
 
-def doc_clean(doc, subsets):
+
+def doc_update_styles(doc, subsets, CONF):
+  #replace font subsets
+  if subsets:
+    for s in doc.styles:
+      if s.fontname in list(subsets.keys()):
+        s.fontname = subsets[s.fontname]
+
+  doc.sections['Script Info']['LayoutResX'] = doc.info['PlayResX']
+  doc.sections['Script Info']['LayoutResY'] = doc.info['PlayResY']
+  doc.styles = update_styles(doc.styles, CONF) #update styles
+
+  return doc
+
+
+def doc_strip_styles(doc, CONF):
   # strip styles
   def matching(x):
     x = x.lower()
-    for str in CONF["STRIP_STYLES"]:
+    for str in CONF["strip_style"]:
       if str in x: return True
     return False
 
@@ -93,15 +104,6 @@ def doc_clean(doc, subsets):
       keepStyles.append(name)
   doc.styles = list(filter(lambda x: x.name in keepStyles, doc.styles))
   
-  #replace font subsets
-  for s in doc.styles:
-    if s.fontname in list(subsets.keys()):
-      s.fontname = subsets[s.fontname]
-
-  doc.sections['Script Info']['LayoutResX'] = doc.info['PlayResX']
-  doc.sections['Script Info']['LayoutResY'] = doc.info['PlayResY']
-  doc.styles = update_styles(doc.styles) #update styles
-
   # strip lines
   def filterEvents(x):
     a = x.style not in removeStyles
@@ -117,6 +119,7 @@ def doc_clean(doc, subsets):
   doc.events = list(filter(filterEvents, doc.events))
 
   return doc
+
 
 def parse_subset(lines):
   subsets = {}
