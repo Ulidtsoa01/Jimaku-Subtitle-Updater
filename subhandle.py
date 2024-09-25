@@ -115,7 +115,7 @@ def file_handling():
       f.seek(0)
       lines = f.readlines()
       subsets = parse_subset(lines) if CONF['parse_subset'] else False
-      doc = doc_strip_styles(doc, CONF)
+      doc = doc_strip_styles(doc, CONF) if CONF['strip_style'] else doc
       doc = doc_update_styles(doc, subsets, CONF)
       f.close()
 
@@ -315,7 +315,7 @@ if __name__ == '__main__':
 
     extracted_mkvs = []
     for mkv in mkvs:
-      extract_subs(mkv, skip_mkv_track=CONF["skip_mkv_track"], normalize_filename=apply("normalize_filename"))
+      extract_subs(mkv, skip_mkv_track=CONF["skip_mkv_track"], normalize_filename=CONF["normalize_filename"])
       extracted_mkvs.append(mkv)
     
     if STRICT:
@@ -325,10 +325,7 @@ if __name__ == '__main__':
         f.close()
 
   if CONF['lineops']:
-    if CONF['mode'] == 'TS':
-      ts_fix_styling()
-    else:
-      file_handling()
+    file_handling()
 
   # if CONF['linebreak']:
 

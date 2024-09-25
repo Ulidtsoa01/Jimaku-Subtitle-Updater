@@ -12,12 +12,11 @@ MODE = {
     'append_filename': "",
   },
   'simple': {
-    "skip_mkv_track": [],
-    "strip_style": [],
-    "apply_style": [],
-    "top_style": [],
-    "skip_style": [],
     'append_filename': "[EDIT]",
+  },
+  'TV': {
+    'replace_line': [["Style: Default.*", "Style: Default,A-OTF Maru Folk Pro B,42,&H00FFFFFF,&H000000FF,&H00000000,&H7F000000,-1,0,0,0,100,100,0,0,1,2,2,1,0,0,0,1\n"],
+                      [r"({\\fsc[xy][15]00?})|(\\fsc[xy][15]00?)", ""]],
   }
 }
 
@@ -29,13 +28,18 @@ CONF = {
   'upload': False,
   'normalize_filename': True,
   'parse_subset': True,
+  "skip_mkv_track": [],
+  "strip_style": [],
+  "apply_style": [],
+  "top_style": [],
+  "skip_style": [],
 }
 
 ############ USER CONFIG ############
 
 PRESET = {
   'encoded': {
-    'mode': 'TS',
+    'mode': 'TV',
   },
   '[Nekomoe kissaten&LoliHouse] Monogatari Series - Off & Monster Season': {
     'fontsize': 80,
@@ -55,7 +59,7 @@ PRESET = {
     'margin_v': None,
     'top_margin_v': None,
     'strip_dialogue': ["^0.*$", "^8.*$"], #NOTE: "Dialogue: " is not included in the dump
-    'replace_line': [["Style: Jp.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
+    'replace_line': [["Style: Default.*", "Style: Default,A-OTF Maru Folk Pro B,42,&H00FFFFFF,&H000000FF,&H00000000,&H7F000000,-1,0,0,0,100,100,0,0,1,2,2,1,0,0,0,1\n"]],
     'extract': True,
     'mode': 'CN',
     'upload': False,
