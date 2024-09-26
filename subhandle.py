@@ -9,6 +9,7 @@ import ass
 import argparse
 from datetime import datetime
 import asyncio
+import logging
 from preset import *
 from lineops import *
 from fileops import *
@@ -29,12 +30,23 @@ args = parser.parse_args()
 # pyfile_path = os.path.dirname(os.path.realpath(__file__))
 OUTPUT_DIR_PATH = Path(args.folder)
 OUTPUT_DIR_NAME = OUTPUT_DIR_PATH.resolve()
+os.chdir(OUTPUT_DIR_NAME)
 STRICT = args.strict
 CONF['strict'] = STRICT
-os.chdir(OUTPUT_DIR_NAME)
 if args.strict and not Path("ignore.conf").is_file():
   print("ignore.conf not present")
   exit(0)
+
+log = logging
+logging.basicConfig(
+  encoding='utf-8',
+  level=logging.DEBUG,
+  handlers=[
+    logging.StreamHandler()]
+)
+if CONF['strict']:
+  log.getLogger().addHandler(logging.FileHandler("upload.log"))
+
 
 EXTRACTED_FILES = []
 EXTRACTED_FILEPATHS = []
@@ -47,12 +59,12 @@ def setConf(preset_name):
     if mode_name in MODE.keys():
       for setting in MODE[mode_name].keys():
         CONF[setting] = MODE[mode_name][setting]
-      log(f"MODE FOUND: {mode_name}")
+      log.info(f"MODE FOUND: {mode_name}")
       
     for setting in PRESET[preset_name].keys():
       CONF[setting] = PRESET[preset_name][setting]
-    log(f"PRESET FOUND: {preset_name}")
-    log(CONF)
+    log.info(f"PRESET FOUND: {preset_name}")
+    log.debug(CONF)
     return True
   return False
 
@@ -99,14 +111,14 @@ def run_update_lines():
       if sub != old:
         if sub in extracted_subs:
           os.remove(sub)
-          log(f"Replace dual file of same name: {sub}")
+          log.info(f"Replace dual file of same name: {sub}")
         os.rename(old, sub)
     
 
   # handle new file
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
   for sub in extracted_subs:
-    log(f"Working on sub file: {sub}")
+    log.info(f"Working on sub file: {sub}")
 
 
     # handle subsets and lineops
@@ -136,7 +148,7 @@ def run_update_lines():
 
     if new_file in extracted_subs:
       os.remove(new_file)
-      log(f"Replace [JPN] file of same name: {new_file}")
+      log.info(f"Replace [JPN] file of same name: {new_file}")
 
     with open(new_file, "x" , encoding='utf_8_sig') as f:
       doc.dump_file(f)
@@ -152,65 +164,21 @@ def run_update_lines():
         f.write(''.join(lines))
         f.close()
       
-      log(f"Apply replace_line regexes: {CONF['replace_line']}")
+      log.info(f"Apply replace_line regexes: {CONF['replace_line']}")
     
-
-############ TS ############
-
-def ts_regexOps(lines):
-    res = []
-    x = None
-    y = None
-    for line in lines:
-      if line.startswith("Style: Default"):
-        line = "Style: Default,A-OTF Maru Folk Pro B,42,&H00FFFFFF,&H000000FF,&H00000000,&H7F000000,-1,0,0,0,100,100,0,0,1,2,2,1,0,0,0,1\n"
-      res.append(line)
-      # if not x:
-      #   x = re.search(r'PlayResX: (\d{1,4})', line)
-      # if not y:
-      #   y = re.search(r'PlayResY: (\d{1,4})', line)
-      #   if x and y:
-      #     res.append(f"LayoutResX: {x.group(1)}\n")
-      #     res.append(f"LayoutResY: {y.group(1)}\n")
-
-    return res
-
-def ts_fix_styling():
-  extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
-  for sub in extracted_subs:
-    with open(sub, 'r', encoding="utf_8_sig") as f:
-      doc = ass.parse(f)
-      doc.sections['Script Info']['LayoutResX'] = doc.info['PlayResX']
-      doc.sections['Script Info']['LayoutResY'] = doc.info['PlayResY']
-      f.close()
-
-    with open(sub, "w" , encoding='utf_8') as f:
-      doc.dump_file(f)
-      f.close()
-    
-    with open(sub, 'r', encoding="utf_8_sig") as f:
-      lines = f.readlines()
-      lines = ts_regexOps(lines)
-      f.close()
-    
-    with open(sub, 'w', encoding="utf_8") as f:
-      f.write(''.join(lines))
-      f.close()
 
 ############ EXTRACT ############
 
-
-# def get_normalize_filename(string):
-#   full_width = """　！＂＃＄％＆＇（）＊＋，－．／０１２３４５６７８９：；＜＝＞？＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ［＼］＾＿｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝"""
-#   half_width = """ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}"""
-#   # full2half = ''.join(F2HMAP.get(c, c) for c in string)
-#   table = str.maketrans(full_width, half_width)
-#   full2half = string.translate(table)
-#   valid_map = {'<': '＜', '>': '＞', ':': ' - ', '/': '／', '\\': '＼', '|': '｜', '?': '？', '*': ''}
-#   valid_filename = ''.join(valid_map.get(c, c) for c in full2half)
-#   return valid_filename
   
-
+def get_normalize_filename(string):
+  full_width = """　！＂＃＄％＆＇（）＊＋，－．／０１２３４５６７８９：；＜＝＞？＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ［＼］＾＿｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝"""
+  half_width = """ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}"""
+  # full2half = ''.join(F2HMAP.get(c, c) for c in string)
+  table = str.maketrans(full_width, half_width)
+  full2half = string.translate(table)
+  valid_map = {'<': '＜', '>': '＞', ':': ' - ', '/': '／', '\\': '＼', '|': '｜', '?': '？', '*': ''}
+  valid_filename = ''.join(valid_map.get(c, c) for c in full2half)
+  return valid_filename
 
 def extract_subs(mkv, skip_mkv_track, normalize_filename):
   commands = [
@@ -230,8 +198,8 @@ def extract_subs(mkv, skip_mkv_track, normalize_filename):
   mkv_json = json.loads(subprocess.check_output(commands)) # ffprobe -v quiet -print_format json -show_streams -select_streams s file.mkv
 
   if not mkv_json.get("streams"):
-    log(f"No subtitle streams to extract: {mkv.resolve()}")
-    exit(1)
+    log.warning(f"No subtitle streams to extract: {mkv.resolve()}")
+    return False
   index = []
   codec_name = []
   num_extracted = 0
@@ -241,14 +209,13 @@ def extract_subs(mkv, skip_mkv_track, normalize_filename):
     for m in skip_mkv_track:
       if m in x:
         return True
-       
     return False
 
   for s in mkv_json["streams"]:
     title = ""
     if "title" in s["tags"]: title = s["tags"]["title"]
     if apply("skip_mkv_track") and (num_extracted > 0 or matching(title.lower())):
-      log(f"Skipped extracting track: {title}")
+      log.info(f"Skipped extracting track: {title}")
       continue
     index.append(s["index"]) 
 
@@ -261,7 +228,7 @@ def extract_subs(mkv, skip_mkv_track, normalize_filename):
   extracted_name = mkv.stem
   if normalize_filename:
     extracted_name = get_normalize_filename(extracted_name)
-    log(f"Normalized name: {extracted_name}")
+    log.info(f"Normalized name: {extracted_name}")
 
   commands = ['mkvextract', mkv.resolve(), "tracks"]
   if PATH_TO_MKVEXTRACT:
@@ -273,14 +240,15 @@ def extract_subs(mkv, skip_mkv_track, normalize_filename):
     commands.append(f"{index[i]}:{extracted_name}.{codec_name[i]}")
 
   subprocess.run(commands) # mkvextract "C:\Coding\input.mkv" tracks 2:name.ass 3:name.srt
+  return True
 
 
 
 ############ MAIN ############
 
 if __name__ == '__main__':
-  log(f"\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-  log(f"Applying to directory: {OUTPUT_DIR_NAME}")
+  log.info(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+  log.info(f"Applying to directory: {OUTPUT_DIR_NAME}")
   if args.preset:
     setConf(args.preset)
   else:
@@ -297,13 +265,14 @@ if __name__ == '__main__':
           f.close()
         mkvs = list(filter(lambda x: x.name not in lines, mkvs))
     if len(mkvs) == 0:
-      log(f"ERROR: no mkv to extract")
+      log.error(f"No mkv to extract")
       exit(1)
 
     extracted_mkvs = []
     for mkv in mkvs:
-      extract_subs(mkv, skip_mkv_track=CONF["skip_mkv_track"], normalize_filename=CONF["normalize_filename"])
-      extracted_mkvs.append(mkv)
+      is_extracted = extract_subs(mkv, skip_mkv_track=CONF["skip_mkv_track"], normalize_filename=CONF["normalize_filename"])
+      if is_extracted:
+        extracted_mkvs.append(mkv)
     
     if STRICT:
       with open("ignore.conf", 'a', encoding="utf-8") as f:

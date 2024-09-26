@@ -77,14 +77,14 @@ PRESET = {
     'margin_v': 54,
     'spacing': 0.0,
     'primary_color': [0, 0, 0, 0],
-    # 'jimaku_id': 2059,
+    'jimaku_id': 1,
     # 'strip_dialogue': ["^.*,LIVE,.*$"],
     # 'replace_line': [["Style: JP.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
     # 'chinese': "CHS",
     'extract': False,
     'update_lines': False,
-    'linebreak': True,
-    'upload': False,
+    'linebreak': False,
+    'upload': True,
     # 'strip_style': ["text"],
   }
 }
