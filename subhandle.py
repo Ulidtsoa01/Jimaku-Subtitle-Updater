@@ -85,7 +85,7 @@ def cn_file_rename(sub):
     sub+=fr"[{old_tag}, {new_tag}].ass"
   return sub
 
-def file_handling():
+def run_update_lines():
   # file renaming
   # only apply to extracted files if extracting is on
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
@@ -199,29 +199,16 @@ def ts_fix_styling():
 
 ############ EXTRACT ############
 
-F2HMAP = {'　': ' ', '！': '!', '＂': '"', '＃': '#', '＄': '$', '％': '%', '＆': '&', 
-          '＇': "'", '（': '(', '）': ')', '＊': '*', '＋': '+', '，': ',', '－': '-', 
-          '．': '.', '／': '/', 
-          '０': '0', '１': '1', '２': '2', '３': '3', '４': '4', '５': '5', '６': '6', 
-          '７': '7', '８': '8', '９': '9', 
-          '：': ':', '；': ';', '＜': '<', '＝': '=', '＞': '>', '？': '?', '＠': '@',
-          'Ａ': 'A', 'Ｂ': 'B', 'Ｃ': 'C', 'Ｄ': 'D', 'Ｅ': 'E', 'Ｆ': 'F', 'Ｇ': 'G',
-          'Ｈ': 'H', 'Ｉ': 'I', 'Ｊ': 'J', 'Ｋ': 'K', 'Ｌ': 'L', 'Ｍ': 'M', 'Ｎ': 'N',
-          'Ｏ': 'O', 'Ｐ': 'P', 'Ｑ': 'Q', 'Ｒ': 'R', 'Ｓ': 'S', 'Ｔ': 'T', 'Ｕ': 'U',
-          'Ｖ': 'V', 'Ｗ': 'W', 'Ｘ': 'X', 'Ｙ': 'Y', 'Ｚ': 'Z', 
-          '［': '[', '＼': '\\', 
-          '］': ']', '＾': '^', '＿': '_', '｀': '`',
-          'ａ': 'a', 'ｂ': 'b', 'ｃ': 'c', 'ｄ': 'd', 'ｅ': 'e', 'ｆ': 'f', 'ｇ': 'g',
-          'ｈ': 'h', 'ｉ': 'i', 'ｊ': 'j', 'ｋ': 'k', 'ｌ': 'l', 'ｍ': 'm', 'ｎ': 'n',
-          'ｏ': 'o', 'ｐ': 'p', 'ｑ': 'q', 'ｒ': 'r', 'ｓ': 's', 'ｔ': 't', 'ｕ': 'u',
-          'ｖ': 'v', 'ｗ': 'w', 'ｘ': 'x', 'ｙ': 'y', 'ｚ': 'z', 
-          '｛': '{', '｜': '|', '｝': '}'}
 
-def get_normalize_filename(string):
-  full2half = ''.join(F2HMAP.get(c, c) for c in string)
-  valid_map = {'<': '＜', '>': '＞', ':': ' - ', '/': '／', '\\': '＼', '|': '｜', '?': '？', '*': ''}
-  valid_filename = ''.join(valid_map.get(c, c) for c in full2half)
-  return valid_filename
+# def get_normalize_filename(string):
+#   full_width = """　！＂＃＄％＆＇（）＊＋，－．／０１２３４５６７８９：；＜＝＞？＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ［＼］＾＿｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝"""
+#   half_width = """ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}"""
+#   # full2half = ''.join(F2HMAP.get(c, c) for c in string)
+#   table = str.maketrans(full_width, half_width)
+#   full2half = string.translate(table)
+#   valid_map = {'<': '＜', '>': '＞', ':': ' - ', '/': '／', '\\': '＼', '|': '｜', '?': '？', '*': ''}
+#   valid_filename = ''.join(valid_map.get(c, c) for c in full2half)
+#   return valid_filename
   
 
 
@@ -301,7 +288,7 @@ if __name__ == '__main__':
 
   mkvs = [f for f in OUTPUT_DIR_PATH.iterdir() if f.suffix == ".mkv"]
 
-  if CONF['extract']:
+  if apply('extract'):
     if STRICT:
       ignorePath = Path("ignore.conf")
       if ignorePath.is_file():
@@ -324,12 +311,14 @@ if __name__ == '__main__':
           f.write(f"{path.name}\n")
         f.close()
 
-  if CONF['lineops']:
-    file_handling()
+  if apply('update_lines'):
+    run_update_lines()
 
-  # if CONF['linebreak']:
+  if apply('linebreak') and not apply("update_lines"):
+    from linebreak import *
+    run_linebreak()
 
-  if CONF['upload'] and apply('jimaku_id'):
+  if apply('upload') and apply('jimaku_id'):
     asyncio.run(upload(output_dir_path=OUTPUT_DIR_PATH, jimaku_id=CONF['jimaku_id'], jimaku_api_key=JIMAKU_API_KEY))
 
   # fix_styling()

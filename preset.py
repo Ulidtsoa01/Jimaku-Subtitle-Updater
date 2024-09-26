@@ -1,7 +1,10 @@
+# NOTE: use r-strings (r"") if you have backslashes in your values.
+
 ############ DEFAULTS ############
 
 MODE = {
   'CN': {
+    'extract': True,
     "skip_mkv_track": ["cht", "tc", "繁"], #skips extracting traditional chinese tracks
     "strip_style": ["cn", "ch", "zh", "sc", "tc", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "furi", "scr", "cmt", "info", "next episode", "stf"],
     "apply_style": ["dial", "text", "bottom", "down", "top", "up"],
@@ -15,6 +18,7 @@ MODE = {
     'append_filename': "[EDIT]",
   },
   'TV': {
+    'extract': True,
     'replace_line': [["Style: Default.*", "Style: Default,A-OTF Maru Folk Pro B,42,&H00FFFFFF,&H000000FF,&H00000000,&H7F000000,-1,0,0,0,100,100,0,0,1,2,2,1,0,0,0,1\n"],
                       [r"({\\fsc[xy][15]00?})|(\\fsc[xy][15]00?)", ""]],
   }
@@ -22,10 +26,9 @@ MODE = {
 
 CONF = {
   'mode': "CN",
-  'extract': True,
-  'lineops': True,
+  'update_lines': True,
   'linebreak': False,
-  'upload': False,
+  'extract': False,
   'normalize_filename': True,
   'parse_subset': True,
   "skip_mkv_track": [],
@@ -35,7 +38,7 @@ CONF = {
   "skip_style": [],
 }
 
-############ USER CONFIG ############
+############ USER PRESETS ############
 
 PRESET = {
   'encoded': {
@@ -50,7 +53,6 @@ PRESET = {
   '[Billion Meta Lab]': {
     'fontsize': 80,
     'margin_v': 54,
-    'chinese': "CHT",
     'outline': 3,
     'extract': False,
   },
@@ -70,6 +72,7 @@ PRESET = {
     'primary_color': [0, 0, 0, 0],
   },
   '.extract': {
+    'mode': 'TV',
     'fontsize': 80,
     'margin_v': 54,
     'spacing': 0.0,
@@ -78,9 +81,9 @@ PRESET = {
     # 'strip_dialogue': ["^.*,LIVE,.*$"],
     # 'replace_line': [["Style: JP.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
     # 'chinese': "CHS",
-    'extract': True,
-    'linefixes': True,
-    'mode': 'CN',
+    'extract': False,
+    'update_lines': False,
+    'linebreak': True,
     'upload': False,
     # 'strip_style': ["text"],
   }
