@@ -26,6 +26,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('folder', nargs='?', default=os.getcwd())
 parser.add_argument('-p', '--preset')  
 parser.add_argument('-s', '--strict', action='store_true')    
+parser.add_argument('-u', '--upload', action='store_true', default=False)    
+parser.add_argument('--jimaku_id', default=False)    
 args = parser.parse_args()
 # pyfile_path = os.path.dirname(os.path.realpath(__file__))
 OUTPUT_DIR_PATH = Path(args.folder)
@@ -68,7 +70,12 @@ def setConf(preset_name):
     return True
   return False
 
-
+def handleArgs(args):
+  global CONF
+  if args.upload and args.jimaku_id:
+    CONF['upload'] = True
+    CONF['jimaku_id'] = args.jimaku_id
+  return True
 
 ############ CN ONLY ############
 
@@ -253,6 +260,7 @@ if __name__ == '__main__':
     setConf(args.preset)
   else:
     setConf(OUTPUT_DIR_PATH.name)
+  handleArgs(args)
 
   mkvs = [f for f in OUTPUT_DIR_PATH.iterdir() if f.suffix == ".mkv"]
 
