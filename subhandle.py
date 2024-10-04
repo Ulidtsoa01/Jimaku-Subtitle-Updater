@@ -26,8 +26,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('folder', nargs='?', default=os.getcwd())
 parser.add_argument('-p', '--preset')  
 parser.add_argument('-s', '--strict', action='store_true')    
-parser.add_argument('-u', '--upload', action='store_true', default=False)    
-parser.add_argument('--jimaku_id', default=False)    
+parser.add_argument('-u', '--upload', action='store_true', default=False)
+parser.add_argument('--jimaku_id', default=False)
+parser.add_argument('--status_dir_path', default=False)    
 args = parser.parse_args()
 # pyfile_path = os.path.dirname(os.path.realpath(__file__))
 OUTPUT_DIR_PATH = Path(args.folder)
@@ -75,6 +76,7 @@ def handleArgs(args):
   if args.upload and args.jimaku_id:
     CONF['upload'] = True
     CONF['jimaku_id'] = args.jimaku_id
+    CONF['status_dir_path'] = args.status_dir_path
   return True
 
 ############ CN ONLY ############
@@ -106,6 +108,7 @@ def cn_file_rename(sub):
 
 def run_update_lines():
   # file renaming
+
   # only apply to extracted files if extracting is on
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
   extractWhich =  EXTRACTED_FILES if CONF['extract'] else extracted_subs
@@ -122,7 +125,7 @@ def run_update_lines():
         os.rename(old, sub)
     
 
-  # handle new file
+  # handle .ass files
   extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
   for sub in extracted_subs:
     log.info(f"Working on sub file: {sub}")
@@ -134,8 +137,9 @@ def run_update_lines():
       f.seek(0)
       lines = f.readlines()
       subsets = parse_subset(lines) if CONF['parse_subset'] else False
-      doc = doc_strip_styles(doc, CONF) if CONF['strip_style'] else doc
+      if CONF['strip_style']: doc = doc_strip_styles(doc, CONF)
       doc = doc_update_styles(doc, subsets, CONF)
+      if apply('trim_end'): doc = doc_trim_end(doc, CONF['trim_end'])
       f.close()
 
     # create second file with different name depending on conf
@@ -163,15 +167,43 @@ def run_update_lines():
     
     # run replace_line regexes
     if apply('replace_line'):
-      with open(new_file, 'r', encoding="utf-8-sig") as f:
+      with open(new_file, 'r', encoding="utf_8_sig") as f:
         lines = f.readlines()
         f.close()
       lines = regexOps(lines)
-      with open(new_file, 'w', encoding="utf-8-sig") as f:
+      with open(new_file, 'w', encoding="utf_8_sig") as f:
         f.write(''.join(lines))
         f.close()
       
       log.info(f"Apply replace_line regexes: {CONF['replace_line']}")
+
+
+def trim_end_srt(timedelta):
+  import srt
+  extracted_subs = [f for f in os.listdir() if f.endswith(".srt")]
+  for sub in extracted_subs:
+    log.info(f"Working on sub file: {sub}")
+    with open(sub, 'r', encoding="utf_8_sig") as f:
+      lines = f.read()
+      f.close()
+    doc = list(srt.parse(lines))
+    trim_line_index = False
+    for i in range(len(doc)-1):
+      # print(f"Start: {doc.events[i].start}")
+      # print(f"End: {doc.events[i].end}")
+      difference = abs(doc[i+1].start-doc[i].end)
+      sec_difference = difference.total_seconds()
+      if sec_difference > timedelta:
+        log.info(f"Diff(sec): {sec_difference}")
+        trim_line_index = i+1
+        break
+
+    if trim_line_index:
+      doc = doc[0:trim_line_index]
+    srtblock = srt.compose(doc)
+    with open(sub, 'w', encoding="utf_8_sig") as f:
+      f.write(srtblock)
+      f.close()
     
 
 ############ EXTRACT ############
@@ -290,16 +322,18 @@ if __name__ == '__main__':
 
   if apply('update_lines'):
     run_update_lines()
+    if apply('trim_end'):
+      trim_end_srt(CONF['trim_end'])
 
   if apply('linebreak') and not apply("update_lines"):
     from linebreak import *
     run_linebreak()
 
   if apply('upload') and apply('jimaku_id'):
-    asyncio.run(upload(output_dir_path=OUTPUT_DIR_PATH, jimaku_id=CONF['jimaku_id'], jimaku_api_key=JIMAKU_API_KEY))
+    asyncio.run(upload(output_dir_path=OUTPUT_DIR_PATH, jimaku_id=CONF['jimaku_id'], jimaku_api_key=JIMAKU_API_KEY, status_dir_path=CONF['status_dir_path']))
 
   # fix_styling()
-  print("\nEND OF SCRIPT!!!!!!!!!!!!!\n")
+  print("\nEND OF SUBHANDLE.PY\n")
   # time.sleep(10)
 
 

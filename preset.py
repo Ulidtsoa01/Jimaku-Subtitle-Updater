@@ -49,6 +49,7 @@ CONF = {
 PRESET = {
   'encoded': {
     'mode': 'TV',
+    'trim_end': 180,
   },
   'uploadonly': {
     'mode': 'do_nothing',
@@ -81,7 +82,7 @@ PRESET = {
     'primary_color': [0, 0, 0, 0],
   },
   '.extract': {
-    'mode': 'TV',
+    'mode': 'do_nothing',
     # 'fontsize': 80,
     # 'margin_v': 54,
     # 'spacing': 0.0,

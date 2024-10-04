@@ -133,8 +133,6 @@ def parse_subset(lines):
   return False
 
 def regexOps(lines):
-  # print(CONF['replace_line'][0][0])
-  # print(CONF['replace_line'][0][1])
   res = []
   for line in lines:
     for set in CONF['replace_line']:
@@ -142,3 +140,23 @@ def regexOps(lines):
     res.append(line)
 
   return res
+
+def doc_trim_end(doc, timedelta):
+  trim_line = False
+  for i in range(len(doc.events)-1):
+    # print(f"Start: {doc.events[i].start}")
+    # print(f"End: {doc.events[i].end}")
+    difference = abs(doc.events[i+1].start-doc.events[i].end)
+    sec_difference = difference.total_seconds()
+    if sec_difference > timedelta:
+      print(f"Diff(sec): {sec_difference}")
+      trim_line = i+1
+      break
+  
+  if trim_line:
+    for i in range(trim_line, len(doc.events)):
+      doc.events[i].style = 'DELETE'
+
+  doc.events = list(filter(lambda x: x.style != 'DELETE', doc.events))
+
+  return doc
