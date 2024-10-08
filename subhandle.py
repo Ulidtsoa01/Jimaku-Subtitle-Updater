@@ -151,10 +151,7 @@ def run_update_lines():
     elif apply('append_filename'):
       # new_file = new_file.replace(CONF['append_filename']+'.ass', '.ass')
       new_file = new_file.replace(CONF['append_filename']+'.ass', '.ass')
-      print(0, CONF['append_filename']+'.ass$')
-      print(1, new_file)
       new_file = re.sub('\.ass$', CONF['append_filename']+'.ass', new_file)
-      print(2, new_file)
 
 
     if new_file in extracted_subs:
@@ -170,7 +167,8 @@ def run_update_lines():
       with open(new_file, 'r', encoding="utf_8_sig") as f:
         lines = f.readlines()
         f.close()
-      lines = regexOps(lines)
+      handle_ruby = CONF['handle_ruby'] if apply('handle_ruby') else False
+      lines = regexOps(lines, handle_ruby)
       with open(new_file, 'w', encoding="utf_8_sig") as f:
         f.write(''.join(lines))
         f.close()
@@ -330,7 +328,10 @@ if __name__ == '__main__':
     run_linebreak()
 
   if apply('upload') and apply('jimaku_id'):
-    asyncio.run(upload(output_dir_path=OUTPUT_DIR_PATH, jimaku_id=CONF['jimaku_id'], jimaku_api_key=JIMAKU_API_KEY, status_dir_path=CONF['status_dir_path']))
+    status_dir_path = False
+    if apply('status_dir_path'):
+      status_dir_path = CONF['status_dir_path']
+    asyncio.run(upload(output_dir_path=OUTPUT_DIR_PATH, jimaku_id=CONF['jimaku_id'], jimaku_api_key=JIMAKU_API_KEY, status_dir_path=status_dir_path))
 
   # fix_styling()
   print("\nEND OF SUBHANDLE.PY\n")

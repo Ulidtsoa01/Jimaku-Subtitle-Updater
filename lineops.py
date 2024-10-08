@@ -132,12 +132,15 @@ def parse_subset(lines):
   
   return False
 
-def regexOps(lines):
+def regexOps(lines, handle_ruby):
   res = []
-  for line in lines:
+  for i in range(len(lines)):
+    if handle_ruby and r'\fscx50\fscy50' in lines[i]:
+      lines[i] = lines[i].replace(r'\fscx50\fscy50', fr'\fscx50\fscy50\fsp{handle_ruby}', 1)
+      lines[i+1] = lines[i+1].replace(')}', fr')\fsp{handle_ruby}' + '}', 1)
     for set in CONF['replace_line']:
-      line = re.sub(fr"{set[0]}", fr"{set[1]}", fr"{line}")
-    res.append(line)
+      lines[i] = re.sub(set[0], set[1], lines[i])
+    res.append(lines[i])
 
   return res
 

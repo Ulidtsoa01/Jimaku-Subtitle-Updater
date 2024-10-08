@@ -9,7 +9,7 @@ MODE = {
     "strip_style": ["cn", "ch", "zh", "sc", "tc", "sign", "staff", "credit", "note", "screen", "title", "comment", "ruby", "furi", "scr", "cmt", "info", "next episode", "stf"],
     "apply_style": ["dial", "text", "bottom", "down", "top", "up"],
     "top_style": ["2", "top", "up"],
-    "skip_style": ["op", "ed"],
+    # "skip_style": ["op", "ed"],
     "old_lang_tag": "CHS",
     "new_lang_tag": "JPN",
     'append_filename': "",
@@ -19,14 +19,17 @@ MODE = {
   },
   'TV': {
     'extract': True,
+    'handle_ruby': 6, #if \fscx50\fscy50 is present on a line, add \fsp6 to the following line
     'replace_line': [["Style: Default.*", "Style: Default,A-OTF Maru Folk Pro B,42,&H00FFFFFF,&H000000FF,&H00000000,&H7F000000,-1,0,0,0,100,100,0,0,1,2,2,1,0,0,0,1\n"],
-                      [r"({\\fsc[xy][15]00?})|(\\fsc[xy][15]00?)", ""]],
+                      [r"\)\\fsc[xy][15]00?}", ")}"],
+                      [r"{\\fsc[xy][15]00?}", ""],
+                    ],
   },
   'do_nothing': {
     'update_lines': False,
     'normalize_filename': False,
     'parse_subset': False,
-  }
+  },
 }
 
 CONF = {
@@ -82,21 +85,30 @@ PRESET = {
     'primary_color': [0, 0, 0, 0],
   },
   '.extract': {
-    'mode': 'do_nothing',
+    'mode': 'CN',
     # 'fontsize': 80,
     # 'margin_v': 54,
     # 'spacing': 0.0,
     # 'primary_color': [0, 0, 0, 0],
+    'top_margin_v': 99,
     'jimaku_id': 1,
     # 'strip_dialogue': ["^.*,LIVE,.*$"],
     # 'replace_line': [["Style: JP.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
     # 'chinese': "CHS",
     'extract': False,
-    'update_lines': False,
+    'update_lines': True,
     'linebreak': False,
-    'upload': True,
+    'upload': False,
     # 'strip_style': ["text"],
-  }
+  },
+  'sweetsub_zegapain': {
+    'fontsize': 70,
+    'margin_v': 50,
+    'top_margin_v': 10,
+    'extract': False,
+    'mode': 'CN',
+    'upload': False,
+  },
 }
 
 # Only used for uploading

@@ -54,7 +54,8 @@ async def upload(output_dir_path, jimaku_id, jimaku_api_key, status_dir_path):
   if not status_dir_path:
     status_dir_path = output_dir_path
 
-  new_folder = Path(status_dir_path).joinpath(status)
+  status_dir_path = Path(status_dir_path)
+  new_folder = status_dir_path.joinpath(status)
   new_folder.mkdir(exist_ok=True)
   for sub in subs:
     sub.replace(new_folder / sub.name)
