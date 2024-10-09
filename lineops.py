@@ -74,10 +74,16 @@ def update_styles(styles, CONF):
 
 def doc_update_styles(doc, subsets, CONF):
   #replace font subsets
+  def matching(x, strList):
+    for str in strList:
+      if str in x: return str
+    return False
+
   if subsets:
     for s in doc.styles:
-      if s.fontname in list(subsets.keys()):
-        s.fontname = subsets[s.fontname]
+      match = matching(s.fontname, list(subsets.keys()))
+      if match:
+        s.fontname = subsets[match]
 
   doc.sections['Script Info']['LayoutResX'] = doc.info['PlayResX']
   doc.sections['Script Info']['LayoutResY'] = doc.info['PlayResY']

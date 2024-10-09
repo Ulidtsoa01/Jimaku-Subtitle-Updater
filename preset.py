@@ -101,14 +101,6 @@ PRESET = {
     'upload': False,
     # 'strip_style': ["text"],
   },
-  'sweetsub_zegapain': {
-    'fontsize': 70,
-    'margin_v': 50,
-    'top_margin_v': 10,
-    'extract': False,
-    'mode': 'CN',
-    'upload': False,
-  },
 }
 
 # Only used for uploading
