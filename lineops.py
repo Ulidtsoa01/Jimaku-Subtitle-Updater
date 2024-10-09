@@ -142,8 +142,10 @@ def regexOps(lines, handle_ruby):
   res = []
   for i in range(len(lines)):
     if handle_ruby and r'\fscx50\fscy50' in lines[i]:
-      lines[i] = lines[i].replace(r'\fscx50\fscy50', fr'\fscx50\fscy50\fsp{handle_ruby}', 1)
-      lines[i+1] = lines[i+1].replace(')}', fr')\fsp{handle_ruby}' + '}', 1)
+      lines[i] = re.sub(r'\\fscx50\\fscy50(\\fsp\d*)?', fr'\\fscx50\\fscy50\\fsp{handle_ruby}', lines[i])
+      lines[i+1] = re.sub(r'(\\fsp\d*)?}', fr'\\fsp{handle_ruby}' + '}', lines[i+1], count=1)
+      # lines[i] = lines[i].replace(r'\fscx50\fscy50', fr'\fscx50\fscy50\fsp{handle_ruby}', 1)
+      # lines[i+1] = lines[i+1].replace('}', fr'\fsp{handle_ruby}' + '}', 1)
     for set in CONF['replace_line']:
       lines[i] = re.sub(set[0], set[1], lines[i])
     res.append(lines[i])

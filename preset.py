@@ -21,8 +21,9 @@ MODE = {
     'extract': True,
     'handle_ruby': 6, #if \fscx50\fscy50 is present on a line, add \fsp6 to the following line
     'replace_line': [["Style: Default.*", "Style: Default,A-OTF Maru Folk Pro B,42,&H00FFFFFF,&H000000FF,&H00000000,&H7F000000,-1,0,0,0,100,100,0,0,1,2,2,1,0,0,0,1\n"],
-                      [r"\)\\fsc[xy][15]00?}", ")}"],
-                      [r"{\\fsc[xy][15]00?}", ""],
+                      [r"\\fscx50\\fscy50", r"\\keeptag"],
+                      [r"\\fsc[xy][15]00?", ""],
+                      [r"\\keeptag", r"\\fscx50\\fscy50"],
                     ],
   },
   'do_nothing': {
