@@ -138,7 +138,7 @@ def parse_subset(lines):
   
   return False
 
-def regexOps(lines, handle_ruby):
+def regexOps(lines, handle_ruby, dont_replace_line):
   res = []
   for i in range(len(lines)):
     if handle_ruby and r'\fscx50\fscy50' in lines[i]:
@@ -147,7 +147,7 @@ def regexOps(lines, handle_ruby):
       # lines[i] = lines[i].replace(r'\fscx50\fscy50', fr'\fscx50\fscy50\fsp{handle_ruby}', 1)
       # lines[i+1] = lines[i+1].replace('}', fr'\fsp{handle_ruby}' + '}', 1)
     for set in CONF['replace_line']:
-      if handle_ruby and '\\fsp' in lines[i]:
+      if dont_replace_line and CONF['dont_replace_line'] in lines[i]:
         continue
       lines[i] = re.sub(set[0], set[1], lines[i])
     res.append(lines[i])

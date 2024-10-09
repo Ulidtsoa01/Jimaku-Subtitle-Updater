@@ -168,7 +168,8 @@ def run_update_lines():
         lines = f.readlines()
         f.close()
       handle_ruby = CONF['handle_ruby'] if apply('handle_ruby') else False
-      lines = regexOps(lines, handle_ruby)
+      dont_replace_line = CONF['dont_replace_line'] if apply('dont_replace_line') else False
+      lines = regexOps(lines, handle_ruby, dont_replace_line)
       with open(new_file, 'w', encoding="utf_8_sig") as f:
         f.write(''.join(lines))
         f.close()
