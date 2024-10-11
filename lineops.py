@@ -5,12 +5,12 @@ from utils import *
 def update_styles(styles, CONF):
   def matching(x):
     for es in CONF["skip_style"]:
-      if es in x:
+      if es.lower() in x:
         return False
     for ns in CONF["apply_style"]: #need to match to apply style options
-      if ns in x:
+      if ns.lower() in x:
         for ts in CONF["top_style"]: #need to match to apply vertical positioning
-          if ts in x:
+          if ts.lower() in x:
             return "top"
         return True
     return False
@@ -97,7 +97,7 @@ def doc_strip_styles(doc, CONF):
   def matching(x):
     x = x.lower()
     for str in CONF["strip_style"]:
-      if str in x: return True
+      if str.lower() in x: return True
     return False
 
   keepStyles = []
@@ -157,8 +157,6 @@ def regexOps(lines, handle_ruby, dont_replace_line):
 def doc_trim_end(doc, timedelta):
   trim_line = False
   for i in range(len(doc.events)-1):
-    # print(f"Start: {doc.events[i].start}")
-    # print(f"End: {doc.events[i].end}")
     difference = abs(doc.events[i+1].start-doc.events[i].end)
     sec_difference = difference.total_seconds()
     if sec_difference > timedelta:
