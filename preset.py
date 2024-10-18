@@ -45,6 +45,10 @@ CONF = {
   "apply_style": [],
   "top_style": [],
   "skip_style": [],
+  "redo_linebreak": False,
+  "min_length": 16,
+  "max_length": 20,
+  "max_ratio": 2.5,
 }
 
 ############ USER PRESETS ############

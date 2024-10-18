@@ -1,9 +1,11 @@
-import MeCab
 import os
 import ass
 import re
+import logging
 from sudachipy import tokenizer, dictionary
-from collections import deque
+
+log = logging.getLogger(__name__)
+
 
 REDO_LINEBREAK = True
 MAX_RATIO = 2.5 # max acceptable ratio of length of strings before/after linebreak position
@@ -65,9 +67,10 @@ def parse_sentence(line, parsed_line, event_num):
           increment_j = end_index - i + 1
           tagless_end_index = j + increment_j - 1
     except Exception as e:
-      print(f"Event {event_num}: {line[0:i+1]}---{line[i+1:] if i+1 < len(line) else ''}")
-      print(f"Parsed line: {parsed_line[0:p+1]}---{parsed_line[p+1:] if p+1 < len(parsed_line) else ''}")
-      print(e.args)
+      log.error(f"Event {event_num}: {line[0:i+1]}---{line[i+1:] if i+1 < len(line) else ''}")
+      log.error(f"Parsed line: {parsed_line[0:p+1]}---{parsed_line[p+1:] if p+1 < len(parsed_line) else ''}")
+      log.error(e.args)
+      exit(0)
 
 
     word = Word(text, j, tagless_end_index, type)
@@ -76,19 +79,25 @@ def parse_sentence(line, parsed_line, event_num):
     j += increment_j
   
   for i in range(len(sentence)-1):
-    sentence[i].next = sentence[i+1]
-  sentence[len(sentence)-1].next = False
+    if sentence[i+1].type == 'tag' and i < len(sentence)-2:
+      sentence[i].next = sentence[i+2]
+    else:
+      sentence[i].next = sentence[i+1]
+    
+  sentence[len(sentence)-1].next = ''
 
   return sentence
 
-def add_linebreak(line, parsed_line, event_num, min_length=MIN_LENGTH, max_length=MAX_LENGTH, redo_linebreak=REDO_LINEBREAK, max_ratio=MAX_RATIO):
+def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, min_length=MIN_LENGTH, max_length=MAX_LENGTH, max_ratio=MAX_RATIO):
   """
   Process:
     - round 1a, 1b, 1c - break around IDEOGRAPHIC SPACE->PUNC->を
     - round 2 - break around particles 
-    - round 3 - break around risker particles
+    - round 3 - break around riskier particles
     - TODO: round 4 - break around kanji words
   TODO: lower ratio after each iteration. round 4 is unlocked after a certain ratio
+  TODO: check if either side is above max_length post-split
+  TODO: lower min_length/max_length/max_ratio if margin or position tag
 
   additional notes about parser:
     - spaces will split words
@@ -235,23 +244,20 @@ def clean_for_sudachipy(string):
   table = str.maketrans(PUNC, ' '*len(PUNC))
   return string.translate(table)
 
-def run_linebreak():
+def run_linebreak(filelist, CONF):
   tokenizer_obj = dictionary.Dictionary(dict_type="full").create()
   modeC = tokenizer.Tokenizer.SplitMode.C
 
   # clean up [Linebreak] files
-  extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
-  for sub in extracted_subs:
+  for sub in filelist:
     linebreak_sub = re.sub("(\[Linebreak\])?\.ass", "[Linebreak].ass", sub)
-    if linebreak_sub in extracted_subs and linebreak_sub != sub:
+    if linebreak_sub in filelist and linebreak_sub != sub:
       os.remove(linebreak_sub)
-      print(f"Replace [Linebreak] file of same name: {linebreak_sub}")
-      # extracted_subs.remove(linebreak_sub)
+      log.info(f"Replace [Linebreak] file of same name: {linebreak_sub}")
+      filelist.remove(linebreak_sub)
 
 
-
-  extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
-  for sub in extracted_subs:
+  for sub in filelist:
     with open(sub, 'r', encoding='utf-8-sig') as f:
       doc = ass.parse(f)
     
@@ -259,7 +265,7 @@ def run_linebreak():
     for i in range(len(doc.events)):
       line = doc.events[i].text
       parsed_line = [m.surface() for m in tokenizer_obj.tokenize(clean_for_sudachipy(line), modeC)]
-      result = add_linebreak(line, parsed_line, i+1)
+      result = add_linebreak(line, parsed_line, i+1, redo_linebreak=CONF['redo_linebreak'], min_length=CONF['min_length'], max_length=CONF['max_length'], max_ratio=CONF['max_ratio'])
       doc.events[i].text = result
 
     linebreak_sub = re.sub("(\[Linebreak\])?\.ass", "[Linebreak].ass", sub)
@@ -296,5 +302,3 @@ if __name__ == '__main__':
     else:
       for i in [modeC]:
         print([m.surface() for m in tokenizer_obj.tokenize("制服とユニフォーム　バッシュもだ", i)])
-
-    # print(line)
