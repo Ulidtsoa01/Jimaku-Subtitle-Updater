@@ -107,29 +107,38 @@ def cn_file_rename(sub):
   return sub
 
 def run_update_lines():
-  # file renaming
-
-  # only apply to extracted files if extracting is on
-  extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
-  extractWhich =  EXTRACTED_FILES if CONF['extract'] else extracted_subs
-
-  # rename original file according to language tag conf
+  # rename dual files and remove duplicate according to language tag conf
   if CONF['mode'] == 'CN':
-    for sub in extractWhich:
-      old = sub
-      sub = cn_file_rename(sub)
-      if sub != old:
-        if sub in extracted_subs:
-          os.remove(sub)
-          log.info(f"Replace dual file of same name: {sub}")
-        os.rename(old, sub)
+    filelist = [f for f in os.listdir() if f.endswith(".ass")]
+    extracted_subs =  EXTRACTED_FILES if CONF['extract'] else filelist
+    for sub in extracted_subs:
+      new_name = cn_file_rename(sub)
+      if new_name != sub:
+        if new_name in filelist:
+          os.remove(new_name)
+          log.info(f"Replace dual file of same name: {new_name}")
+        os.rename(sub, new_name)
     
+  def get_mono_filename(name):
+    if CONF['mode'] == 'CN':
+      name = name.replace(f"[{CONF['old_lang_tag']}, {CONF['new_lang_tag']}]", f"[{CONF['new_lang_tag']}]")
+    elif apply('append_filename'):
+      if not name.endswith(CONF['append_filename']+'.ass'):
+        name = re.sub('\.ass$', CONF['append_filename']+'.ass', name)
+    return name
 
-  # handle .ass files
-  extracted_subs = [f for f in os.listdir() if f.endswith(".ass")]
-  for sub in extracted_subs:
+  # remove duplicate mono files
+  filelist = [f for f in os.listdir() if f.endswith(".ass")]
+  for sub in filelist:
+    new_name = get_mono_filename(sub)
+    if new_name != sub and new_name in filelist:
+      os.remove(new_name)
+      log.info(f"Replace mono file of same name: {new_name}")
+
+
+  filelist = [f for f in os.listdir() if f.endswith(".ass")]
+  for sub in filelist:
     log.info(f"Working on sub file: {sub}")
-
 
     # handle subsets and lineops
     with open(sub, 'r', encoding='utf-8-sig') as f:
@@ -142,23 +151,9 @@ def run_update_lines():
       if apply('trim_end'): doc = doc_trim_end(doc, CONF['trim_end'])
       f.close()
 
-    # create second file with different name depending on conf
-    new_file = sub
-    if CONF['mode'] == 'CN':
-      old_tag = CONF['old_lang_tag']
-      new_tag = CONF['new_lang_tag']
-      new_file = sub.replace(f"[{old_tag}, {new_tag}]", f"[{new_tag}]")
-    elif apply('append_filename'):
-      # new_file = new_file.replace(CONF['append_filename']+'.ass', '.ass')
-      new_file = new_file.replace(CONF['append_filename']+'.ass', '.ass')
-      new_file = re.sub('\.ass$', CONF['append_filename']+'.ass', new_file)
-
-
-    if new_file in extracted_subs:
-      os.remove(new_file)
-      log.info(f"Replace [JPN] file of same name: {new_file}")
-
-    with open(new_file, "x" , encoding='utf_8_sig') as f:
+    # create/handle mono file depending on if it already exists
+    new_file = get_mono_filename(sub)
+    with open(new_file, "w" , encoding='utf_8_sig') as f:
       doc.dump_file(f)
       f.close()
     

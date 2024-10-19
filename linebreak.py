@@ -13,7 +13,7 @@ MAX_LENGTH = 20 # must add linebreak if line is at least this length
 MIN_LENGTH = 16 # don't add linebreak unless line is at least this length
 
 START_PUNC = """『「(（《｟[{"'“¿""" + """'“"¿([{-『「（〈《〔【｛［｟＜<‘“〝※"""
-END_PUNC =   """'"・.。!！?？:：”>＞⦆)]}』」）〉》〕】｝］’〟／＼～〜~;；─―–-➡""" + """＊,，、…"""
+END_PUNC =   """'"・.。!！?？:：”>＞⦆)]}』」）〉》〕】｝］’〟／＼～〜~;；─―–-➡""" + """＊,，、… """
 REPLACE_PUNC = """　"""
 PUNC = START_PUNC + END_PUNC + REPLACE_PUNC
 
@@ -27,6 +27,20 @@ POST = '[るどたよにではがも]|'+'[のとな]|'+'[しれんかねだわ�
 # TODO: don't break after if word is this
 PREFIX = 'お'
 
+
+class Word:
+  def __init__(self, text, start, end, type):
+    self.text = text
+    self.start = start
+    self.end = end
+    self.type = type
+    self.ratio = False
+
+  def __str__(self):
+    return f"{self.text}({self.start},{self.end})"
+  
+  def __repr__(self):
+    return self.text
 
 def parse_sentence(line, parsed_line, event_num):
   sentence = []
@@ -105,10 +119,14 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
   :line: event line in ass file.  Ex: "大人の高さまで　背が伸びたらわかる？\n"
   :parsed_line: event line parsed into words. Ex: ['大人', 'の', '高', 'さ', 'まで', ' ', '背', 'が', '伸び', 'たら', 'わかる', ' ']
   """ 
+  verbose = False
   line_length = 0
+  parsed_line_str = ' '.join(parsed_line)
   for i in parsed_line:
     line_length+=len(i)
   if (not redo_linebreak and re.search(r'\\N', line)) or line_length < min_length:
+    if verbose:
+      line += "{" + f"L{str(line_length)}|{parsed_line_str}" + "}"
     return line
   if redo_linebreak:
     line = line.replace('\\N', '')
@@ -126,6 +144,7 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
 
   best = False
   debug = "0"
+  candidate = []
   while not best:
     # round 1a: ideographic space
     candidate = list(filter(lambda x: x.type == "replace_punc", sentence))
@@ -197,11 +216,18 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
 
     # no linebreak added
     if line_length <= max_length:
+      if verbose:
+        line += "\{Skipped\}"
       return line
 
     break
+
+  extra = ""
+  if verbose:
+    extra = f"|L{line_length}|"
+    for c in candidate:
+      extra += c.text+str(c.ratio)
   
-  pl = ' '.join(parsed_line)
   if best:
     if best.after == 'replace':
       best.text = "\\N"
@@ -213,37 +239,21 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
     line = ""
     for w in sentence:
       line += w.text
-    line+= "{" + f"R{debug}|{pl}" +  "}"
+    line+= "{" + f"R{debug}{extra if verbose else ''}|{parsed_line_str}" +  "}"
   else:
-    line+= "{" + f"MISSED|{pl}" +  "}"
-
+    line+= "{" + f"MISSED{extra if verbose else ''}|{parsed_line_str}" +  "}"
 
   return line
-
-
-class Word:
-  def __init__(self, text, start, end, type):
-    self.text = text
-    self.start = start
-    self.end = end
-    self.type = type
-    self.ratio = False
-
-  def __str__(self):
-    return f"{self.text}({self.start},{self.end})"
-  
-  def __repr__(self):
-    return self.text
-
 
 
 def clean_for_sudachipy(string):
   """Remove tags and linebreaks. To make word matching simpler, replace all punc with space"""
   string = re.sub(r'\\N', '', string)
-  string = re.sub(r'{.*}', '', string)
+  string = re.sub(r'{[^}]*}', '', string)
   table = str.maketrans(PUNC, ' '*len(PUNC))
   return string.translate(table)
 
+# TODO: rework this into subhandle.py
 def run_linebreak(filelist, CONF):
   tokenizer_obj = dictionary.Dictionary(dict_type="full").create()
   modeC = tokenizer.Tokenizer.SplitMode.C
@@ -261,7 +271,6 @@ def run_linebreak(filelist, CONF):
     with open(sub, 'r', encoding='utf-8-sig') as f:
       doc = ass.parse(f)
     
-    # for i in range(20):
     for i in range(len(doc.events)):
       line = doc.events[i].text
       parsed_line = [m.surface() for m in tokenizer_obj.tokenize(clean_for_sudachipy(line), modeC)]
