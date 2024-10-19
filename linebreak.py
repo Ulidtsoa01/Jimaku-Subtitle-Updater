@@ -19,11 +19,11 @@ PUNC = START_PUNC + END_PUNC + REPLACE_PUNC
 
 HIRAGANA_WO = "を"
 ROUND2A = '.*[るどたよにではがも]$|たら|ながら'
-ROUND2B = '.*[のとな]$'
-ROUND3 = '[てか]|って'
+ROUND2B = '.*[のなとゃ]$'
+ROUND3 = '[てか]|って|いう|から' # まだ
 
 # don't break if next word is this
-POST = '[るどたよにではがも]'+'|'+'[のとな]'+'|'+'[しれんかねだわてい]|なく|です|ない|べき|から|言[いえ]|思[いえう]|いう|する|けれど|とっ'
+POST = '[るどたよにではがも]'+'|'+'[のな]'+'|'+'[しれんかねだわてい]|っ.*|から|けれど|なく|です|ない|べき|言[いえ]|思[いえう]|いう|する|とっ' # no と
 POST += '|ある|おけ'
 HONORIFICS = 'ちゃん|さん'
 # TODO: don't break after if word is this
@@ -107,10 +107,10 @@ def parse_sentence(line, parsed_line, event_num):
 def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, min_length=MIN_LENGTH, max_length=MAX_LENGTH, max_ratio=MAX_RATIO, debug_linebreak=0):
   """
   Process:
-    - round 1a, 1b, 1c - break around IDEOGRAPHIC SPACE->PUNC->を
-    - round 2a, 2b - break around particles->riskier particles
-    - round 3 - break around certain words if next word has no kana
-    - TODO: round 4 - break around kanji words
+    - round 1a, 1b, 1c - break after IDEOGRAPHIC SPACE->PUNC->を
+    - round 2a, 2b - break after particles->riskier particles
+    - round 3 - break after certain words under conditions
+    - round 4 - break after len(word)>1 under conditions
   TODO: lower ratio after each iteration. round 4 is unlocked after a certain ratio
   TODO: check if either side is above max_length post-split
   TODO: lower min_length/max_length/max_ratio if margin or position tag
@@ -140,6 +140,7 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
   # print(' '.join(str(item) for item in sentence)) 
   # print([str(w) for w in sentence]) 
 
+  original_ratio = max_ratio
   best = False
   debug = "0"
   candidate = []
@@ -203,22 +204,37 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
       break
 
     # round 2a: particles
-    candidate, best = test_round(lambda x: bool(re.fullmatch(ROUND2A, x.text)), words_only, 'ee', lambda a : a, lambda b : line_length - b, True)
+    candidate, best = test_round(lambda x: re.fullmatch(ROUND2A, x.text), words_only, 'ee', lambda a : a, lambda b : line_length - b, True)
     if candidate:
       debug = "2a"
       break
 
     # round 2b: risker particles
-    candidate, best = test_round(lambda x: bool(re.fullmatch(ROUND2B, x.text)), words_only, 'ee', lambda a : a, lambda b : line_length - b, True)
+    candidate, best = test_round(lambda x: re.fullmatch(ROUND2B, x.text), words_only, 'ee', lambda a : a, lambda b : line_length - b, True)
     if candidate:
       debug = "2b"
       break
 
-    # round 3: next word is not kana
-    words_only_precedes_not_kana = list(filter(lambda x: bool(re.fullmatch('[^ぁ-んァ-ン]*', x.next.text) if x.next else False), words_only))
-    candidate, best = test_round(lambda x: bool(re.fullmatch(ROUND3, x.text)), words_only_precedes_not_kana, 'ee', lambda a : a, lambda b : line_length - b, True)
+    # for next word
+    not_kana = list(filter(lambda x: re.match('[^ぁ-んァ-ン]', x.next.text) if x.next else False, words_only)) # first char not kana
+    longer_than_one = list(filter(lambda x: len(x.next.text) > 1 if x.next else False, words_only))
+    not_kana_longer_than_one = [x for x in not_kana if x in longer_than_one]
+    
+    # round 3: certain words with conditions
+    candidate, best = test_round(lambda x: re.fullmatch(ROUND3, x.text), not_kana, 'ee', lambda a : a, lambda b : line_length - b, True)
     if candidate:
-      debug = "3"
+      debug = "3a"
+      break
+
+    candidate, best = test_round(lambda x: re.fullmatch(ROUND3, x.text), longer_than_one, 'ee', lambda a : a, lambda b : line_length - b, True)
+    if candidate:
+      debug = "3b"
+      break
+
+    # round 4: len(word)>1 with conditions
+    candidate, best = test_round(lambda x: len(x.text)>1, not_kana_longer_than_one, 'ee', lambda a : a, lambda b : line_length - b, True)
+    if candidate:
+      debug = "4"
       break
 
     # no linebreak added
@@ -227,7 +243,9 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
         line += "\{Skipped\}"
       return line
 
-    break
+    max_ratio += .5
+    if max_ratio > 5:
+      break
 
   extra = ""
   if verbose:
@@ -247,7 +265,10 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
     for w in sentence:
       line += w.text
     if debug_linebreak > 1:
-      line+= "{" + f"R{debug}{extra if verbose else ''}|{parsed_line_str}" +  "}"
+      line += "{"
+      if max_ratio > original_ratio:
+        line += f"M{max_ratio}"
+      line +=f"R{debug}{extra if verbose else ''}|{parsed_line_str}" +  "}"
   elif debug_linebreak > 0:
     line+= "{" + f"MISSED{extra if verbose else ''}|{parsed_line_str}" +  "}"
 
