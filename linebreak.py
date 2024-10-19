@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 REDO_LINEBREAK = True
 MAX_RATIO = 2.5 # max acceptable ratio of length of strings before/after linebreak position
 MAX_LENGTH = 20 # must add linebreak if line is at least this length
-MIN_LENGTH = 16 # don't add linebreak unless line is at least this length
+MIN_LENGTH = 18 # don't add linebreak unless line is at least this length
 
 START_PUNC = """『「(（《｟[{"'“¿""" + """'“"¿([{-『「（〈《〔【｛［｟＜<‘“〝※"""
 END_PUNC =   """'"・.。!！?？:：”>＞⦆)]}』」）〉》〕】｝］’〟／＼～〜~;；─―–-➡""" + """＊,，、… """
@@ -20,10 +20,11 @@ PUNC = START_PUNC + END_PUNC + REPLACE_PUNC
 HIRAGANA_WO = "を"
 ROUND2A = '.*[るどたよにではがも]$|たら|ながら'
 ROUND2B = '.*[のなとゃ]$'
-ROUND3 = '[てか]|って|いう|から' # まだ
+ROUND3 = '[てか]|って|いう|から|なら' # まだ,
+after_kanji = 'かも'
 
 # don't break if next word is this
-POST = '[るどたよにではがも]'+'|'+'[のな]'+'|'+'[しれんかねだわてい]|っ.*|から|けれど|なく|です|ない|べき|言[いえ]|思[いえう]|いう|する|とっ' # no と
+POST = '[るどたよにではがも]'+'|'+'[のな]'+'|'+'[しれんかねだわてい]|っ.*|から|けれど|なく|です|ない|べき|言[いえ]|思[いえう]|いう|する|とっ|しれ' # no と
 POST += '|ある|おけ'
 HONORIFICS = 'ちゃん|さん'
 # TODO: don't break after if word is this
@@ -106,7 +107,7 @@ def parse_sentence(line, parsed_line, event_num):
 
 def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, min_length=MIN_LENGTH, max_length=MAX_LENGTH, max_ratio=MAX_RATIO, debug_linebreak=0):
   """
-  Raise ratio after each iteration. TODO: Round 4 is unlocked after a certain ratio
+  Raise ratio after each iteration. Round 4 is unlocked when max_ratio >= 3
     - round 1a, 1b, 1c - break after IDEOGRAPHIC SPACE->PUNC->を
     - round 2a, 2b - break after particles->riskier particles
     - round 3 - break after certain words under conditions
@@ -233,10 +234,11 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
       break
 
     # round 4: len(word)>1 with conditions
-    candidate, best = test_round(lambda x: len(x.text)>1, not_kana_longer_than_one, 'ee', lambda a : a, lambda b : line_length - b, True)
-    if candidate:
-      debug = "4"
-      break
+    if max_ratio >= 3:
+      candidate, best = test_round(lambda x: len(x.text)>1, not_kana_longer_than_one, 'ee', lambda a : a, lambda b : line_length - b, True)
+      if candidate:
+        debug = "4"
+        break
 
     # no linebreak added
     if line_length <= max_length:
@@ -248,7 +250,6 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
       max_ratio += .2
     else:
       max_length += 5
-      print("MAAAXXXXX", max_length)
 
   extra = ""
   if verbose:
@@ -267,11 +268,14 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
     line = ""
     for w in sentence:
       line += w.text
-    if debug_linebreak > 1:
-      line += "{"
+    if debug_linebreak >= 1:
       if max_ratio > original_ratio:
+        line += "{"
         line += f"M{max_ratio:.1f}"
-      line +=f"R{debug}{extra if verbose else ''}|{parsed_line_str}" +  "}"
+        line +=f"R{debug}{extra if verbose else ''}|{parsed_line_str}" +  "}"
+      elif debug_linebreak >= 2:
+        line += "{"
+        line +=f"R{debug}{extra if verbose else ''}|{parsed_line_str}" +  "}"
   elif debug_linebreak > 0:
     line+= "{" + f"MISSED{extra if verbose else ''}|{parsed_line_str}" +  "}"
 

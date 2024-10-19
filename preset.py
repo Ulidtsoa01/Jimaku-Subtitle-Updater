@@ -48,7 +48,7 @@ CONF = {
   "new_linebreak_file": True,
   "redo_linebreak": False,
   "debug_linebreak": 0,
-  "min_length": 16,
+  "min_length": 18,
   "max_length": 20,
   "max_ratio": 2.5,
 }
@@ -99,7 +99,7 @@ PRESET = {
     # 'top_margin_v': 99,
     # 'strip_style': ["歌cn"],
     # 'strip_dialogue': ["^.*,LIVE,.*$"],
-    # 'replace_line': [["Style: JP.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
+    'replace_line': [["Style: Default.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
     # 'chinese': "CHS",
     'extract': False,
     'update_lines': True,

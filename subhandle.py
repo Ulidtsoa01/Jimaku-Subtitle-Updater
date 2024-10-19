@@ -149,37 +149,35 @@ def run_update_lines():
   filelist = [f for f in os.listdir() if f.endswith(".ass")]
   for sub in filelist:
     log.info(f"Working on sub file: {sub}")
+    new_file = get_mono_filename(sub)
 
-    # run replace_line regexes
-    if apply('replace_line'):
-      with open(new_file, 'r', encoding="utf_8_sig") as f:
-        lines = f.readlines()
-        f.close()
-      handle_ruby = CONF['handle_ruby'] if apply('handle_ruby') else False
-      dont_replace_line = CONF['dont_replace_line'] if apply('dont_replace_line') else False
-      lines = regexOps(lines, handle_ruby, dont_replace_line)
-      with open(new_file, 'w', encoding="utf_8_sig") as f:
-        f.write(''.join(lines))
-        f.close()
-      
-      log.info(f"Apply replace_line regexes: {CONF['replace_line']}")
+    # run replace_line regexes first
+    with open(sub, 'r', encoding="utf_8_sig") as f:
+      lines = f.readlines()
+      f.close()
+      if apply('replace_line'):
+        handle_ruby = CONF['handle_ruby'] if apply('handle_ruby') else False
+        dont_replace_line = CONF['dont_replace_line'] if apply('dont_replace_line') else False
+        lines = regexOps(lines, handle_ruby, dont_replace_line)
+        log.info(f"Apply replace_line regexes: {CONF['replace_line']}")
+    with open(new_file, 'w', encoding="utf_8_sig") as f:
+      f.write(''.join(lines))
+      f.close()
 
     # handle subsets and lineops
-    with open(sub, 'r', encoding='utf-8-sig') as f:
+    with open(new_file, 'r', encoding='utf-8-sig') as f:
       doc = ass.parse(f)
       f.seek(0)
       lines = f.readlines()
       subsets = parse_subset(lines) if CONF['parse_subset'] else False
       if CONF['strip_style']: doc = doc_strip_styles(doc, CONF)
       doc, linebreak_styles = doc_edit(doc, subsets, CONF)
-
       
       if apply('trim_end'): doc = doc_trim_end(doc, CONF['trim_end'])
       f.close()
 
-    new_file = get_mono_filename(sub)
-    # create/handle mono file depending on if it already exists
 
+    # handle mono file 
     if not(apply('linebreak') and not apply('new_linebreak_file')):
       with open(new_file, "w" , encoding='utf_8_sig') as f:
         doc.dump_file(f)
