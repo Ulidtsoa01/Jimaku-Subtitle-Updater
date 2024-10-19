@@ -20,9 +20,12 @@ def update_styles(styles, CONF):
       return True
     return False
 
+  linebreak_styles = []
+
   for s in styles:
     match = matching(s.name.lower())
     if match:
+      linebreak_styles.append(s.name)
       if apply('fontsize'): s.fontsize = CONF['fontsize']
       if apply('fontname'): s.fontname = CONF['fontname']
       if apply('bold'): s.bold = CONF['bold']
@@ -69,10 +72,10 @@ def update_styles(styles, CONF):
       else:
         if apply('margin_v'): s.margin_v = CONF['margin_v']
 
-  return styles
+  return styles, linebreak_styles
 
 
-def doc_update_styles(doc, subsets, CONF):
+def doc_edit(doc, subsets, CONF):
   #replace font subsets
   def matching(x, strList):
     for str in strList:
@@ -87,9 +90,8 @@ def doc_update_styles(doc, subsets, CONF):
 
   doc.sections['Script Info']['LayoutResX'] = doc.info['PlayResX']
   doc.sections['Script Info']['LayoutResY'] = doc.info['PlayResY']
-  doc.styles = update_styles(doc.styles, CONF) #update styles
-
-  return doc
+  doc.styles, linebreak_styles = update_styles(doc.styles, CONF) #update styles
+  return doc, linebreak_styles
 
 
 def doc_strip_styles(doc, CONF):

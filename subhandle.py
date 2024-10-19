@@ -126,37 +126,30 @@ def run_update_lines():
       if not name.endswith(CONF['append_filename']+'.ass'):
         name = re.sub('\.ass$', CONF['append_filename']+'.ass', name)
     return name
+  
+  # remove existing linebreak files 
+  # filelist = [f for f in os.listdir() if f.endswith("[Linebreak].ass")]
+  # for sub in filelist:
+  #   os.remove(sub) 
 
-  # remove duplicate mono files
-  filelist = [f for f in os.listdir() if f.endswith(".ass")]
+  # remove duplicate mono and linebreak files
+  filelist = [f for f in os.listdir() if f.endswith(".ass") and not f.endswith("[Linebreak].ass")]
   for sub in filelist:
     new_name = get_mono_filename(sub)
     if new_name != sub and new_name in filelist:
       os.remove(new_name)
       log.info(f"Replace mono file of same name: {new_name}")
+    if apply('linebreak') and apply('new_linebreak_file'):
+      linebreak_name = re.sub("\.ass", "[Linebreak].ass", new_name)
+      if linebreak_name != new_name and os.path.exists(linebreak_name):
+        os.remove(linebreak_name)
+        log.info(f"Replace linebreak file of same name: {linebreak_name}")
 
 
   filelist = [f for f in os.listdir() if f.endswith(".ass")]
   for sub in filelist:
     log.info(f"Working on sub file: {sub}")
 
-    # handle subsets and lineops
-    with open(sub, 'r', encoding='utf-8-sig') as f:
-      doc = ass.parse(f)
-      f.seek(0)
-      lines = f.readlines()
-      subsets = parse_subset(lines) if CONF['parse_subset'] else False
-      if CONF['strip_style']: doc = doc_strip_styles(doc, CONF)
-      doc = doc_update_styles(doc, subsets, CONF)
-      if apply('trim_end'): doc = doc_trim_end(doc, CONF['trim_end'])
-      f.close()
-
-    # create/handle mono file depending on if it already exists
-    new_file = get_mono_filename(sub)
-    with open(new_file, "w" , encoding='utf_8_sig') as f:
-      doc.dump_file(f)
-      f.close()
-    
     # run replace_line regexes
     if apply('replace_line'):
       with open(new_file, 'r', encoding="utf_8_sig") as f:
@@ -170,6 +163,36 @@ def run_update_lines():
         f.close()
       
       log.info(f"Apply replace_line regexes: {CONF['replace_line']}")
+
+    # handle subsets and lineops
+    with open(sub, 'r', encoding='utf-8-sig') as f:
+      doc = ass.parse(f)
+      f.seek(0)
+      lines = f.readlines()
+      subsets = parse_subset(lines) if CONF['parse_subset'] else False
+      if CONF['strip_style']: doc = doc_strip_styles(doc, CONF)
+      doc, linebreak_styles = doc_edit(doc, subsets, CONF)
+
+      
+      if apply('trim_end'): doc = doc_trim_end(doc, CONF['trim_end'])
+      f.close()
+
+    new_file = get_mono_filename(sub)
+    # create/handle mono file depending on if it already exists
+
+    if not(apply('linebreak') and not apply('new_linebreak_file')):
+      with open(new_file, "w" , encoding='utf_8_sig') as f:
+        doc.dump_file(f)
+        f.close()
+
+    if apply('linebreak'):
+      from linebreak import run_doc_linebreak
+      doc = run_doc_linebreak(doc, linebreak_styles, CONF)
+      if apply('new_linebreak_file'):
+        new_file = re.sub("(\[Linebreak\])?\.ass", "[Linebreak].ass", new_file)
+      with open(new_file, "w" , encoding='utf_8_sig') as f:
+        doc.dump_file(f)
+        f.close()
 
 
 def trim_end_srt(timedelta):
@@ -320,7 +343,7 @@ if __name__ == '__main__':
       trim_end_srt(CONF['trim_end'])
 
   if apply('linebreak') and not apply("update_lines"):
-    from linebreak import *
+    from linebreak import run_linebreak
     filelist = ""
     if CONF['mode'] == 'CN':
       filelist = [f for f in os.listdir() if f.endswith(".ass") and "[JPN]" in f]
