@@ -106,13 +106,11 @@ def parse_sentence(line, parsed_line, event_num):
 
 def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, min_length=MIN_LENGTH, max_length=MAX_LENGTH, max_ratio=MAX_RATIO, debug_linebreak=0):
   """
-  Process:
+  Raise ratio after each iteration. TODO: Round 4 is unlocked after a certain ratio
     - round 1a, 1b, 1c - break after IDEOGRAPHIC SPACE->PUNC->を
     - round 2a, 2b - break after particles->riskier particles
     - round 3 - break after certain words under conditions
     - round 4 - break after len(word)>1 under conditions
-  TODO: lower ratio after each iteration. round 4 is unlocked after a certain ratio
-  TODO: check if either side is above max_length post-split
   TODO: lower min_length/max_length/max_ratio if margin or position tag
 
   additional notes about parser:
@@ -152,15 +150,18 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
       return round(left/right, 1)
     return round(right/left, 1)
 
-  def test_round(key, eligible_words, which, left, right, after):
+  def test_round(key, eligible_words, which, calc_left, calc_right, after):
     best = ''
     candidate = list(filter(key, eligible_words))
-    for x in candidate:
-      send_left = x.start if which[0] == 's' else x.end
-      send_right = x.start if which[1] == 's' else x.end
-      x.ratio = calc_ratio(left(send_left), right(send_right))
+    def fc(x):
+      left = calc_left(x.start if which[0] == 's' else x.end)
+      right = calc_right(x.start if which[1] == 's' else x.end)
+      x.ratio = calc_ratio(left, right)
       x.after = after
-    candidate = list(filter(lambda x: x.ratio <= max_ratio, candidate))
+      if x.ratio <= max_ratio and left <= max_length and right <= max_length:
+        return True
+      return False
+    candidate = list(filter(fc, candidate))
     if candidate:
       best = min(candidate, key=lambda x: x.ratio)
     return candidate, best
@@ -243,9 +244,11 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
         line += "\{Skipped\}"
       return line
 
-    max_ratio += .5
-    if max_ratio > 5:
-      break
+    if max_ratio <= 4:
+      max_ratio += .2
+    else:
+      max_length += 5
+      print("MAAAXXXXX", max_length)
 
   extra = ""
   if verbose:
@@ -267,7 +270,7 @@ def add_linebreak(line, parsed_line, event_num, redo_linebreak=REDO_LINEBREAK, m
     if debug_linebreak > 1:
       line += "{"
       if max_ratio > original_ratio:
-        line += f"M{max_ratio}"
+        line += f"M{max_ratio:.1f}"
       line +=f"R{debug}{extra if verbose else ''}|{parsed_line_str}" +  "}"
   elif debug_linebreak > 0:
     line+= "{" + f"MISSED{extra if verbose else ''}|{parsed_line_str}" +  "}"
