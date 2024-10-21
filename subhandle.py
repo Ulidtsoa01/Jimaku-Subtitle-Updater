@@ -340,15 +340,6 @@ if __name__ == '__main__':
     if apply('trim_end'):
       trim_end_srt(CONF['trim_end'])
 
-  if apply('linebreak') and not apply("update_lines"):
-    from linebreak import run_linebreak
-    filelist = ""
-    if CONF['mode'] == 'CN':
-      filelist = [f for f in os.listdir() if f.endswith(".ass") and "[JPN]" in f]
-    else:
-      filelist = [f for f in os.listdir() if f.endswith(".ass")]
-    run_linebreak(filelist, CONF)
-
   if apply('upload') and apply('jimaku_id'):
     status_dir_path = False
     if apply('status_dir_path'):

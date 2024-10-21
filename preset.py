@@ -49,8 +49,8 @@ CONF = {
   "redo_linebreak": False,
   "debug_linebreak": 0,
   "min_length": 18,
-  "max_length": 20,
-  "max_ratio": 2.5,
+  "max_length": 18,
+  "max_ratio": 2.4,
 }
 
 ############ USER PRESETS ############
@@ -66,6 +66,7 @@ PRESET = {
   '[Nekomoe kissaten&LoliHouse] Monogatari Series - Off & Monster Season': {
     'fontsize': 80,
     'margin_v': 54,
+    'outline': 3.5,
     'upload': True,
     'jimaku_id': 6152,
   },
@@ -99,7 +100,7 @@ PRESET = {
     # 'top_margin_v': 99,
     # 'strip_style': ["歌cn"],
     # 'strip_dialogue': ["^.*,LIVE,.*$"],
-    'replace_line': [["Style: Default.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
+    # 'replace_line': [["Style: Default.*", "Style: Jp,Droid Sans Fallback,75,&H00FFFFFF,&H00FFFFFF,&H00A766FF,&H64FFFFFF,-1,0,0,0,100,100,1.5,0,1,3,4.5,2,15,15,30,1"]],
     # 'chinese': "CHS",
     'extract': False,
     'update_lines': True,
