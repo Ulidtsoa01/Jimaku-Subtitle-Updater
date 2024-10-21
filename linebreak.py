@@ -5,9 +5,10 @@ import logging
 from sudachipy import tokenizer, dictionary
 
 # Only for running linebreak.py on its own:
-FILELIST = False # Set FILELIST as the path of a folder or file
-# FILELIST = r"C:\Coding\.extract"
-# FILELIST = r"C:\Coding\.extract\[Nekomoe kissaten&LoliHouse] Monogatari Series - Off & Monster Season - 01 [WebRip 1080p HEVC-10bit AAC ASSx2][JPN].ass"
+# If PATH is not set, it uses the folder that linebreak.py is in
+PATH = False
+PATH = r"C:\Coding\.extract"
+# PATH = r"C:\Coding\.extract\[Nekomoe kissaten&LoliHouse] Monogatari Series - Off & Monster Season - 01 [WebRip 1080p HEVC-10bit AAC ASSx2][JPN].ass"
 APPLY_STYLE = ["Dial_JP", "Dial_JP2"] # List of styles to apply linebreaks to.
 
 
@@ -380,18 +381,19 @@ def run_linebreak(filelist):
 
 if __name__ == '__main__':
   CN = False
-  if FILELIST:
-    if os.path.isdir(FILELIST):
-      os.chdir(FILELIST)
+  filelist = ''
+  if PATH:
+    if os.path.isdir(PATH):
+      os.chdir(PATH)
       if CN:
-        FILELIST = [f for f in os.listdir() if f.endswith(".ass") and "[JPN]" in f]
+        filelist = [f for f in os.listdir() if f.endswith(".ass") and "[JPN]" in f]
       else:
-        FILELIST = [f for f in os.listdir() if f.endswith(".ass")]
+        filelist = [f for f in os.listdir() if f.endswith(".ass")]
     else:
-      os.chdir(os.path.dirname(os.path.realpath(FILELIST)))
-      FILELIST = [FILELIST]
+      os.chdir(os.path.dirname(os.path.realpath(PATH)))
+      filelist = [PATH]
   else:
     os.chdir(os.path.dirname(os.path.realpath(__file__)))
-    FILELIST = [f for f in os.listdir() if f.endswith(".ass")]
-  print(f"Running on: {FILELIST}")
-  run_linebreak(FILELIST)
+    filelist = [f for f in os.listdir() if f.endswith(".ass")]
+  print(f"Running on: {filelist}")
+  run_linebreak(filelist)
